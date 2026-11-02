@@ -1,0 +1,23 @@
+{
+  "name": "pitstop",
+  "slug": "pitstop",
+  "identifier": "io.github.bush2021.pitstop",
+  "version": "1.0.0",
+  "copyright": "© 2026 Bush2021",
+  "icon": "assets/icon.png",
+  "out": "build",
+  "updates": {
+    "publicKey": "y4vr3GRXsm+kks9YDeDlSpdCz+Hux6JRdIjG9iBpBdY=",
+    "github": "Bush2021/pitstop"
+  },
+  "i18n": {
+    "dir": "locales",
+    "source": "en"
+  },
+  "windows": {
+    "displayName": "Pitstop"
+  },
+  "linux": {
+    "webview": false
+  }
+}

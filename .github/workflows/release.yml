@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Check tag and version
+        id: version
+        run: |
+          version=$(jq -r .version mygo.json)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version"
+            exit 1
+          fi
+          if [[ "${version%%+*}" == *-* ]]; then
+            echo 'prerelease=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'prerelease=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Keep published releases unchanged
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          draft=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.tag_name == env.GITHUB_REF_NAME) | .draft')
+          if [ -n "$draft" ] && [ "$draft" != true ]; then
+            echo '::error::This release is already published'
+            exit 1
+          fi
+      - name: Build and upload update files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: go tool mygo build -platform windows/amd64 -skip-installer -upload
+      - name: Upload portable executable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" build/windows-amd64/pitstop.exe --repo "$GITHUB_REPOSITORY" --clobber
+      - name: Set draft release type
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --prerelease="$PRERELEASE"
