@@ -927,6 +927,74 @@ func TestRawEditor(t *testing.T) {
 	}
 }
 
+func TestSidebarLeavesRawEditor(t *testing.T) {
+	for _, target := range []struct{ label, page string }{
+		{"Overview", pageOverview},
+		{"Tabs & mouse", pageTabs},
+		{"Keyboard", pageKeyboard},
+		{"Startup", pageStartup},
+		{"Settings", pageSettings},
+		{"About", pageAbout},
+	} {
+		t.Run(target.page, func(t *testing.T) {
+			h := newHarness(t, "156.0.8078.74")
+			h.setUp()
+			before := onDisk(t, h.a.iniPath)
+			h.click("Advanced")
+			h.click("Edit chrome++.ini as text")
+			text := strings.Replace(h.a.raw.Buffer.String(), "hover_tab=0", "hover_tab=1", 1)
+			h.a.raw.Buffer.Set(text)
+			h.frame()
+			h.click(target.label)
+			if h.a.raw != nil || h.a.page != target.page || h.tt.HasText("Done") {
+				t.Fatalf("editor open: %v; page %q, want %q", h.a.raw != nil, h.a.page, target.page)
+			}
+			if v, _ := h.a.draft.Get("tabs", "hover_tab"); v != "1" || h.a.pending() != 1 {
+				t.Errorf("draft hover_tab=%q, %d pending", v, h.a.pending())
+			}
+			if onDisk(t, h.a.iniPath) != before {
+				t.Error("navigation saved the draft")
+			}
+			h.click("Advanced")
+			h.click("Edit chrome++.ini as text")
+			if h.a.raw.Buffer.String() != text {
+				t.Error("reopening the editor lost the text")
+			}
+		})
+	}
+}
+
+func TestSidebarKeepsRawEditorOnEncodingError(t *testing.T) {
+	h := newHarness(t, "156.0.8078.74")
+	h.setUp()
+	const before = "[tabs]\r\nhover_tab=0\r\n"
+	if err := os.WriteFile(h.a.iniPath, []byte(before), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.a.loadINI()
+	h.frame()
+	h.click("Advanced")
+	h.click("Edit chrome++.ini as text")
+	text := h.a.raw.Buffer.String() + "; \u4e2d\u6587\n"
+	h.a.raw.Buffer.Set(text)
+	h.frame()
+	h.click("Settings")
+	if h.a.raw == nil || h.a.page != pageAdvanced || !errors.Is(h.a.rawErr, ini.ErrNonASCII) {
+		t.Fatalf("editor open: %v; page %q; error %v", h.a.raw != nil, h.a.page, h.a.rawErr)
+	}
+	h.want(h.a.rawErr.Error(), "Done")
+	if h.a.raw.Buffer.String() != text || onDisk(t, h.a.iniPath) != before || h.a.pending() != 0 {
+		t.Error("failed navigation changed the text, file or draft")
+	}
+	h.a.raw.Buffer.Set(strings.Replace(before, "hover_tab=0", "hover_tab=1", 1))
+	h.frame()
+	h.click("Settings")
+	if h.a.raw != nil || h.a.page != pageSettings || h.a.rawErr != nil || h.a.pending() != 1 {
+		t.Fatalf("after correction: editor open %v; page %q; error %v; %d pending", h.a.raw != nil, h.a.page, h.a.rawErr, h.a.pending())
+	}
+	h.want("Appearance")
+}
+
 func onDisk(t *testing.T, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)

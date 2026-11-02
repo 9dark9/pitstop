@@ -174,7 +174,10 @@ func (a *App) sidebar(c *ui.Context) {
 				}
 			})
 		}).Grow(1).Background(ui.Transparent).Label(locales.AppTitle()).Changed() {
-			a.page, a.query = selected, ""
+			if a.raw != nil && !a.applyRaw() {
+				return
+			}
+			a.page, a.query, a.raw = selected, "", nil
 		}
 	})
 }
