@@ -1,8 +1,14 @@
-name: CI
+name: Build
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (1.2.3 or 1.2.3-rc.1); leave empty for alpha
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -32,3 +38,109 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go test ./...
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Set build version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            if [ "$GITHUB_REF" != refs/heads/main ]; then
+              echo '::error::Release builds must run from main'
+              exit 1
+            fi
+            number='(0|[1-9][0-9]*)'
+            identifier='(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)'
+            if ! [[ "$INPUT_VERSION" =~ ^$number\.$number\.$number(-$identifier(\.$identifier)*)?$ ]]; then
+              echo '::error::Expected a version such as 1.2.3 or 1.2.3-rc.1'
+              exit 1
+            fi
+            if [ "$INPUT_VERSION" = "$(jq -r .version mygo.json)" ]; then
+              echo '::error::Choose a new release version'
+              exit 1
+            fi
+            existing_tag=$(git ls-remote --tags origin "refs/tags/v$INPUT_VERSION")
+            if [ -n "$existing_tag" ]; then
+              echo '::error::This version already has a tag'
+              exit 1
+            fi
+            version=$INPUT_VERSION
+          else
+            version="alpha-${GITHUB_SHA:0:7}"
+          fi
+          jq --arg version "$version" '.version = $version' mygo.json > mygo.json.tmp
+          mv mygo.json.tmp mygo.json
+          git add mygo.json
+          git write-tree > "$RUNNER_TEMP/source-tree"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build portable executable and update files
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' && secrets.MYGO_UPDATER_PRIVATE_KEY || '' }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ] && [ -z "$MYGO_UPDATER_PRIVATE_KEY" ]; then
+            echo '::error::MYGO_UPDATER_PRIVATE_KEY is required for a release build'
+            exit 1
+          fi
+          go tool mygo build -platform windows/amd64 -skip-installer
+          git diff --exit-code
+          cp "$RUNNER_TEMP/source-tree" build/source-tree
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pitstop-windows-amd64-${{ steps.version.outputs.version }}
+          path: |
+            build/windows-amd64/*
+            build/SHA256SUMS
+            build/source-tree
+          if-no-files-found: error
+          overwrite: true
+
+  create_pr:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: pitstop-windows-amd64-${{ inputs.version }}
+          path: release-build
+      - name: Create version pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          branch="release/$GITHUB_RUN_ID"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          jq --arg version "$VERSION" '.version = $version' mygo.json > mygo.json.tmp
+          mv mygo.json.tmp mygo.json
+          git add mygo.json
+          test "$(git write-tree)" = "$(cat release-build/source-tree)"
+          git commit -m "Update version to $VERSION" -m "Build-Run-Id: $GITHUB_RUN_ID"
+          existing_branch=$(git ls-remote origin "refs/heads/$branch")
+          if [ -n "$existing_branch" ]; then
+            git fetch origin "refs/heads/$branch"
+            test "$(git rev-parse 'FETCH_HEAD^{tree}')" = "$(git rev-parse 'HEAD^{tree}')"
+          else
+            git push origin "HEAD:refs/heads/$branch"
+          fi
+          existing_pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --state all --json url --jq '.[0].url // empty')
+          if [ -n "$existing_pr" ]; then
+            echo "$existing_pr"
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" \
+              --title "Update version to $VERSION" --body "Build-Run-Id: $GITHUB_RUN_ID"
+          fi

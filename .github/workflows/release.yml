@@ -1,53 +1,127 @@
 name: Release
 
 on:
-  push:
-    tags: ["v*"]
+  pull_request:
+    types: [closed]
+    branches: [main]
+    paths: [mygo.json]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Build run ID (for retrying a failed release after its version PR is merged)
+        type: string
+        required: true
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       startsWith(github.event.pull_request.head.ref, 'release/'))
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-      - name: Check tag and version
-        id: version
+      - name: Resolve release build
+        id: build
+        env:
+          INPUT_RUN_ID: ${{ inputs.run_id }}
         run: |
-          version=$(jq -r .version mygo.json)
-          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match version $version"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            run_id=$INPUT_RUN_ID
+          else
+            run_id=$(jq -r .pull_request.body "$GITHUB_EVENT_PATH" | sed -n 's/^Build-Run-Id: \([1-9][0-9]*\)$/\1/p')
+          fi
+          if ! [[ "$run_id" =~ ^[1-9][0-9]*$ ]]; then
+            echo '::error::Expected one Build run ID'
             exit 1
           fi
-          if [[ "${version%%+*}" == *-* ]]; then
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            commit=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --head "release/$run_id" --state merged \
+              --json mergeCommit --jq '.[].mergeCommit.oid')
+          else
+            test "$(jq -r .pull_request.head.ref "$GITHUB_EVENT_PATH")" = "release/$run_id"
+            commit=$(jq -r .pull_request.merge_commit_sha "$GITHUB_EVENT_PATH")
+          fi
+          if ! [[ "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::The build must have one merged version PR'
+            exit 1
+          fi
+          build=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
+          echo "$build" | jq -e \
+            '.event == "workflow_dispatch" and .head_branch == "main" and
+             .path == ".github/workflows/ci.yml" and .conclusion == "success"'
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.build.outputs.commit }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: pitstop-windows-amd64-*
+          path: release-build
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.build.outputs.run_id }}
+      - name: Check release source
+        id: version
+        run: |
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(cat release-build/source-tree)"
+          version=$(jq -r .version mygo.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then
             echo 'prerelease=true' >> "$GITHUB_OUTPUT"
           else
             echo 'prerelease=false' >> "$GITHUB_OUTPUT"
           fi
       - name: Keep published releases unchanged
+        id: release
         env:
-          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          draft=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.tag_name == env.GITHUB_REF_NAME) | .draft')
+          draft=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.tag_name == ("v" + env.VERSION)) | .draft')
           if [ -n "$draft" ] && [ "$draft" != true ]; then
             echo '::error::This release is already published'
             exit 1
           fi
-      - name: Build and upload update files
+          echo "draft=$draft" >> "$GITHUB_OUTPUT"
+      - name: Create release tag
         env:
-          GH_TOKEN: ${{ github.token }}
-          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
-        run: go tool mygo build -platform windows/amd64 -skip-installer -upload
-      - name: Upload portable executable
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          tag="v$VERSION"
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            test "$(git rev-parse "$tag^{commit}")" = "$(git rev-parse HEAD)"
+          else
+            git tag "$tag"
+            git push origin "refs/tags/$tag"
+          fi
+      - name: Upload and publish release
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" build/windows-amd64/pitstop.exe --repo "$GITHUB_REPOSITORY" --clobber
-      - name: Set draft release type
-        env:
-          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
           PRERELEASE: ${{ steps.version.outputs.prerelease }}
-        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --prerelease="$PRERELEASE"
+          EXISTING_DRAFT: ${{ steps.release.outputs.draft }}
+        run: |
+          tag="v$VERSION"
+          if [ -z "$EXISTING_DRAFT" ]; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+              --title "$VERSION" --generate-notes --prerelease="$PRERELEASE"
+          fi
+          gh release upload "$tag" release-build/windows-amd64/* release-build/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false \
+            --prerelease="$PRERELEASE" --latest="$([ "$PRERELEASE" = false ] && echo true || echo false)"
