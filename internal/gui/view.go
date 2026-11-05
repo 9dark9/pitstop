@@ -547,6 +547,8 @@ func phaseLabel(p pitstop.Phase) string {
 		return locales.PhaseUnpack()
 	case pitstop.Verifying:
 		return locales.PhaseVerify()
+	case pitstop.Diffing:
+		return locales.PhaseDiff()
 	case pitstop.Applying:
 		return locales.PhaseApply()
 	case pitstop.Closing:
@@ -1164,7 +1166,8 @@ func (a *App) ownSettings() []ownSetting {
 	if a.in.State.Policy != install.Off {
 		list = append(list, ownSetting{options.Option{Key: "interval", Group: updates, Label: locales.Messages.UpdatesInterval}, a.intervalRow})
 	}
-	return append(list, ownSetting{options.Option{Key: "keep", Group: updates, Label: locales.Messages.UpdatesKeep, Help: locales.Messages.UpdatesKeepHelp}, a.keepRow})
+	list = append(list, ownSetting{options.Option{Key: "keep", Group: updates, Label: locales.Messages.UpdatesKeep, Help: locales.Messages.UpdatesKeepHelp}, a.keepRow})
+	return append(list, ownSetting{options.Option{Key: "diff", Group: updates, Label: locales.Messages.UpdatesDiff, Help: locales.Messages.UpdatesDiffHelp}, a.diffRow})
 }
 
 func (a *App) ownSettingsPage(c *ui.Context) {
@@ -1218,6 +1221,20 @@ func (a *App) keepRow(c *ui.Context) {
 			on := !a.in.State.DiscardReplaced
 			if ui.Switch(c.Key("control"), &on).Label(label).Disabled(a.busy).Changed() {
 				a.setKeep(on)
+			}
+		})
+	})
+}
+
+// diffRow drops the updates found so far: a check with the kept package
+// can offer a differential update instead.
+func (a *App) diffRow(c *ui.Context) {
+	label := locales.UpdatesDiff()
+	settingRow(c, "diff", func() {
+		rowHead(c, label, locales.UpdatesDiffHelp(), func() {
+			on := a.in.State.DiffUpdates
+			if ui.Switch(c.Key("control"), &on).Label(label).Disabled(a.busy).Changed() {
+				a.setState(func(s *install.State) { s.DiffUpdates = on })
 			}
 		})
 	})

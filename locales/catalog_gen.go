@@ -428,6 +428,16 @@ func (msgs Messages) PhaseVerify() string {
 	return Catalog.Format(msgs.locale, "phaseVerify", nil)
 }
 
+// PhaseDiff says "Applying the differential update"
+// in the language the app shows.
+func PhaseDiff() string { return In(i18n.Locale()).PhaseDiff() }
+
+// PhaseDiff says "Applying the differential update"
+// in the language of msgs.
+func (msgs Messages) PhaseDiff() string {
+	return Catalog.Format(msgs.locale, "phaseDiff", nil)
+}
+
 // PhaseApply says "Applying changes"
 // in the language the app shows.
 func PhaseApply() string { return In(i18n.Locale()).PhaseApply() }
@@ -904,6 +914,26 @@ func UpdatesKeepHelp() string { return In(i18n.Locale()).UpdatesKeepHelp() }
 // in the language of msgs.
 func (msgs Messages) UpdatesKeepHelp() string {
 	return Catalog.Format(msgs.locale, "updatesKeepHelp", nil)
+}
+
+// UpdatesDiff says "Use differential Chrome updates"
+// in the language the app shows.
+func UpdatesDiff() string { return In(i18n.Locale()).UpdatesDiff() }
+
+// UpdatesDiff says "Use differential Chrome updates"
+// in the language of msgs.
+func (msgs Messages) UpdatesDiff() string {
+	return Catalog.Format(msgs.locale, "updatesDiff", nil)
+}
+
+// UpdatesDiffHelp says "Keeps the last Chrome package (about 500 MB), so that Google's server can send only what changed. If a differential u…"
+// in the language the app shows.
+func UpdatesDiffHelp() string { return In(i18n.Locale()).UpdatesDiffHelp() }
+
+// UpdatesDiffHelp says "Keeps the last Chrome package (about 500 MB), so that Google's server can send only what changed. If a differential u…"
+// in the language of msgs.
+func (msgs Messages) UpdatesDiffHelp() string {
+	return Catalog.Format(msgs.locale, "updatesDiffHelp", nil)
 }
 
 // UpdatesPolicy says "Update mode"

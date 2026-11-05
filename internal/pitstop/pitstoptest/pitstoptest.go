@@ -16,12 +16,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	zucchini "github.com/404Setup/go-zucchini"
 	"github.com/ulikunitz/xz"
 
 	"github.com/Bush2021/chrome_update/pefile/pefiletest"
@@ -140,27 +142,73 @@ type Servers struct {
 	// Digest is the Chrome++ archive's digest in GitHub's API; "" for
 	// none.
 	Digest string
-	// Gets counts the package downloads.
+	// BadDiff has the differential updates it offers fail to apply.
+	BadDiff bool
+	// Gets counts the package downloads, and Diffs the differential ones
+	// among them.
 	Gets  atomic.Int32
-	mu    sync.Mutex
-	files map[string][]byte
+	Diffs atomic.Int32
+	// Cached is what the last update check reported as cached.
+	Cached  []string
+	mu      sync.Mutex
+	files   map[string][]byte
+	patches map[string]bool
 }
 
-func (s *Servers) xzPackage(version string) (pkg []byte, dl string, size int64) {
-	pkg = Package(version)
+func (s *Servers) serve(b []byte) (dl string, size int64) {
 	var buf bytes.Buffer
 	xw, _ := xz.NewWriter(&buf)
-	xw.Write(pkg)
+	xw.Write(b)
 	xw.Close()
 	dl = Sum(buf.Bytes())
 	s.mu.Lock()
 	s.files[dl] = buf.Bytes()
 	s.mu.Unlock()
-	return pkg, dl, int64(buf.Len())
+	return dl, int64(buf.Len())
+}
+
+func (s *Servers) xzPackage(version string) (pkg []byte, dl string, size int64) {
+	pkg = Package(version)
+	dl, size = s.serve(pkg)
+	return pkg, dl, size
+}
+
+// zuccPipeline patches a cached package of an offered version into next's,
+// as Google's server does when the client accepts zucc.
+func (s *Servers) zuccPipeline(cached []string, next string) (map[string]any, bool) {
+	for _, v := range s.Versions {
+		old := Package(v)
+		if v == next || !slices.Contains(cached, Sum(old)) {
+			continue
+		}
+		p, err := zucchini.GenerateBuffer(old, Package(next))
+		if err != nil {
+			return nil, false
+		}
+		if s.BadDiff {
+			p[len(p)-1] ^= 0xff
+		}
+		dl, size := s.serve(p)
+		s.mu.Lock()
+		s.patches[dl] = true
+		s.mu.Unlock()
+		pkg := Package(next)
+		return map[string]any{
+			"pipeline_id": "1:zucc:" + Sum(pkg) + ":" + Sum(old),
+			"operations": []any{
+				map[string]any{"type": "download", "size": size, "out": map[string]string{"sha256": dl},
+					"urls": []any{map[string]string{"url": s.URL + "/dl/" + dl}}},
+				map[string]any{"type": "xz"},
+				map[string]any{"type": "zucc", "previous": map[string]string{"sha256": Sum(old)}, "out": map[string]string{"sha256": Sum(pkg)}},
+				map[string]any{"type": "crx3", "size": len(pkg), "in": map[string]string{"sha256": Sum(pkg)}},
+			},
+		}, true
+	}
+	return nil, false
 }
 
 func NewServers(t testing.TB, versions ...string) *Servers {
-	s := &Servers{Versions: versions, files: map[string][]byte{}}
+	s := &Servers{Versions: versions, files: map[string][]byte{}, patches: map[string]bool{}}
 	archive, err := os.ReadFile(Fixture("testdata/" + PlusArchive))
 	if err != nil {
 		t.Fatal(err)
@@ -172,12 +220,16 @@ func NewServers(t testing.TB, versions ...string) *Servers {
 	mux.HandleFunc("GET /dl/{name}", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		b, ok := s.files[r.PathValue("name")]
+		patch := s.patches[r.PathValue("name")]
 		s.mu.Unlock()
 		if !ok {
 			http.NotFound(w, r)
 			return
 		}
 		s.Gets.Add(1)
+		if patch {
+			s.Diffs.Add(1)
+		}
 		http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(b))
 	})
 	mux.HandleFunc("GET /repos/Bush2021/chrome_plus/releases/latest", func(w http.ResponseWriter, r *http.Request) {
@@ -201,11 +253,16 @@ func NewServers(t testing.TB, versions ...string) *Servers {
 func (s *Servers) Endpoint() string { return s.URL + "/update" }
 
 // update answers a protocol 4 request with the newest version, or the
-// newest one matching the target prefix, as an xz pipeline.
+// newest one matching the target prefix, as an xz pipeline, after a patch
+// pipeline if it can make one.
 func (s *Servers) update(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Request struct {
-			Apps []struct {
+			AcceptFormat string `json:"acceptformat"`
+			Apps         []struct {
+				Cached []struct {
+					SHA256 string `json:"sha256"`
+				} `json:"cached_items"`
 				Version     string `json:"version"`
 				UpdateCheck struct {
 					Target string `json:"targetversionprefix"`
@@ -218,6 +275,13 @@ func (s *Servers) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a := req.Request.Apps[0]
+	var cached []string
+	for _, c := range a.Cached {
+		cached = append(cached, c.SHA256)
+	}
+	s.mu.Lock()
+	s.Cached = cached
+	s.mu.Unlock()
 	next := ""
 	for _, v := range s.Versions {
 		if strings.HasPrefix(v, a.UpdateCheck.Target) {
@@ -227,9 +291,15 @@ func (s *Servers) update(w http.ResponseWriter, r *http.Request) {
 	check := map[string]any{"status": "noupdate"}
 	if next != "" && next != a.Version && (a.UpdateCheck.Target != "" || install.CompareVersions(next, a.Version) > 0) {
 		pkg, dl, size := s.xzPackage(next)
+		var pipelines []any
+		if slices.Contains(strings.Split(req.Request.AcceptFormat, ","), "zucc") {
+			if p, ok := s.zuccPipeline(cached, next); ok {
+				pipelines = append(pipelines, p)
+			}
+		}
 		check = map[string]any{
 			"status": "ok", "nextversion": next,
-			"pipelines": []any{map[string]any{
+			"pipelines": append(pipelines, map[string]any{
 				"pipeline_id": "1:xz:" + Sum(pkg) + ":any",
 				"operations": []any{
 					map[string]any{"type": "download", "size": size, "out": map[string]string{"sha256": dl},
@@ -237,7 +307,7 @@ func (s *Servers) update(w http.ResponseWriter, r *http.Request) {
 					map[string]any{"type": "xz"},
 					map[string]any{"type": "crx3", "size": len(pkg), "in": map[string]string{"sha256": Sum(pkg)}},
 				},
-			}},
+			}),
 		}
 	}
 	io.WriteString(w, ")]}'\n")

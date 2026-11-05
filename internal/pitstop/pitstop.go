@@ -10,8 +10,9 @@
 // Pitstop's files sit in the install's .pitstop folder:
 //
 //	state.json  journal.json  lock
-//	cache\chrome\        packages being downloaded and decoded
-//	cache\chromeplus\    Chrome++ release archives
+//	cache\chrome\          packages being downloaded and decoded
+//	cache\chrome\base\     the last package, kept for differential updates
+//	cache\chromeplus\      Chrome++ release archives
 //	staging\chrome-<version>\       a verified build, ready to swap in
 //	staging\chromeplus-<release>\   version.dll and the default chrome++.ini
 //	rollback\chrome-<version>\      the build an update replaced
@@ -106,6 +107,7 @@ const (
 	Decoding    Phase = "decode"
 	Unpacking   Phase = "unpack"
 	Verifying   Phase = "verify"
+	Diffing     Phase = "diff"
 	Applying    Phase = "apply"
 	Closing     Phase = "close"
 	Moving      Phase = "move"
@@ -207,7 +209,13 @@ func (e *Engine) UpdateState(change func(*install.State)) error {
 		return err
 	}
 	change(&s)
-	return install.SaveState(e.Root, s)
+	if err := install.SaveState(e.Root, s); err != nil {
+		return err
+	}
+	if !s.DiffUpdates {
+		return os.RemoveAll(e.path(baseCache))
+	}
+	return nil
 }
 
 // Open describes the install, once it settled a build that Chrome swapped
@@ -239,6 +247,9 @@ type ChromeUpdate struct {
 	Arch     string
 	Version  string
 	Pipeline omaha.Pipeline
+	// Fallback is the full pipeline of a differential Pipeline, should
+	// the differential update fail.
+	Fallback *omaha.Pipeline
 }
 
 func (u *ChromeUpdate) DownloadSize() int64 {
@@ -246,16 +257,25 @@ func (u *ChromeUpdate) DownloadSize() int64 {
 	return op.Size
 }
 
-// accept lists the operations Pitstop performs: it downloads, decodes
-// xz streams and unpacks a CRX3 package. Google's patches come later.
+// accept lists the operations Pitstop performs on a full package: it
+// downloads, decodes xz streams and unpacks a CRX3 package.
 var accept = []string{omaha.OpDownload, omaha.OpXZ, omaha.OpCRX3}
 
 func (e *Engine) CheckChrome(ctx context.Context, in *install.Install) (*ChromeUpdate, error) {
-	return e.checkChrome(ctx, omaha.Request{Channel: cmp.Or(in.State.Channel, omaha.Stable), Arch: in.Arch, Version: in.Chrome})
+	req := omaha.Request{Channel: cmp.Or(in.State.Channel, omaha.Stable), Arch: in.Arch, Version: in.Chrome}
+	if in.State.DiffUpdates {
+		if base, ok := e.base(); ok {
+			req.Cached = []string{base}
+		}
+	}
+	return e.checkChrome(ctx, req)
 }
 
 func (e *Engine) checkChrome(ctx context.Context, req omaha.Request) (*ChromeUpdate, error) {
 	req.Accept = accept
+	if len(req.Cached) > 0 {
+		req.Accept = append(slices.Clone(accept), omaha.OpZucc)
+	}
 	ans, err := e.Omaha.Check(ctx, req)
 	if err != nil {
 		return nil, err
@@ -263,11 +283,20 @@ func (e *Engine) checkChrome(ctx context.Context, req omaha.Request) (*ChromeUpd
 	if ans.Version == "" {
 		return nil, nil
 	}
-	p, ok := ans.Pick(accept...)
+	u := &ChromeUpdate{Channel: req.Channel, Arch: req.Arch, Version: ans.Version}
+	full, ok := ans.Pick(accept...)
+	if p, found := pickDiff(ans.Pipelines, req.Cached, full, ok); found {
+		u.Pipeline = p
+		if ok {
+			u.Fallback = &full
+		}
+		return u, nil
+	}
 	if !ok {
 		return nil, fmt.Errorf("the update server offers Chrome %s in no form Pitstop can install", ans.Version)
 	}
-	return &ChromeUpdate{Channel: req.Channel, Arch: req.Arch, Version: ans.Version, Pipeline: p}, nil
+	u.Pipeline = full
+	return u, nil
 }
 
 // Outcome is where an update ended up.
@@ -648,6 +677,9 @@ func (e *Engine) stageChrome(ctx context.Context, u *ChromeUpdate) (string, erro
 		return rel, nil
 	}
 	crx, err := e.fetchChrome(ctx, u.Pipeline)
+	if err != nil && u.Fallback != nil && ctx.Err() == nil {
+		crx, err = e.fetchChrome(ctx, *u.Fallback)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -677,7 +709,7 @@ func (e *Engine) stageChrome(ctx context.Context, u *ChromeUpdate) (string, erro
 		os.RemoveAll(partial)
 		return "", err
 	}
-	os.Remove(crx)
+	e.keepBase(crx)
 	return rel, nil
 }
 
@@ -690,7 +722,9 @@ func (e *Engine) fetchChrome(ctx context.Context, p omaha.Pipeline) (string, err
 	if !ok || !ok2 || dl.Out == "" || pkg.In == "" {
 		return "", fmt.Errorf("pipeline %s lacks a download or a package", p.ID)
 	}
-	if err := e.prune(chromeCache, func(n string) bool { return strings.HasPrefix(n, dl.Out) || strings.HasPrefix(n, pkg.In) }); err != nil {
+	if err := e.prune(chromeCache, func(n string) bool {
+		return n == "base" || strings.HasPrefix(n, dl.Out) || strings.HasPrefix(n, pkg.In)
+	}); err != nil {
 		return "", err
 	}
 	if err := os.MkdirAll(e.path(chromeCache), 0o755); err != nil {
@@ -729,6 +763,8 @@ func (e *Engine) fetchChrome(ctx context.Context, p omaha.Pipeline) (string, err
 		decoding(pkg.Size, pkg.Size) // it may have finished before the download did
 		os.Remove(xz)
 		return crx, nil
+	case "zucc":
+		return crx, e.diffChrome(ctx, p, crx)
 	}
 	return "", fmt.Errorf("pipeline %s: Pitstop cannot use %q pipelines", p.ID, p.Kind())
 }

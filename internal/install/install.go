@@ -276,8 +276,11 @@ type State struct {
 	ApprovedPlus string `json:"approvedPlus,omitempty"`
 	// DiscardReplaced has an update delete what it replaces. A switch
 	// between versions still keeps the current one.
-	DiscardReplaced bool    `json:"discardReplaced,omitempty"`
-	History         []Event `json:"history,omitempty"`
+	DiscardReplaced bool `json:"discardReplaced,omitempty"`
+	// DiffUpdates has Chrome updates keep their package, which Google's
+	// server can then patch into the next one.
+	DiffUpdates bool    `json:"diffUpdates,omitempty"`
+	History     []Event `json:"history,omitempty"`
 }
 
 // CheckEvery is how long the background mode waits between checks.

@@ -3,7 +3,8 @@ module github.com/Bush2021/pitstop
 go 1.27.3
 
 require (
-	github.com/Bush2021/chrome_update v0.4.0
+	github.com/404Setup/go-zucchini v1.0.0
+	github.com/Bush2021/chrome_update v0.5.0
 	github.com/bodgit/sevenzip v1.6.5
 	github.com/egoist/mygo v0.7.5-0.20261102061820-59e00c7bbfe0
 	github.com/gofrs/flock v0.13.1

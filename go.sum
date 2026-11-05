@@ -1,5 +1,7 @@
-github.com/Bush2021/chrome_update v0.4.0 h1:Dixm/aV3cnZSFVj9jmdI8F8kWHL8oqsLYjoDwFDsTnI=
-github.com/Bush2021/chrome_update v0.4.0/go.mod h1:ePWPERRmtGo4RJrNuNrB4m91ma/IrwFiSSHWz8x8TRo=
+github.com/404Setup/go-zucchini v1.0.0 h1:X0upuWZeyS+NxzcsZbE9Zhhd0ahfv1UBx7cYonKh7B8=
+github.com/404Setup/go-zucchini v1.0.0/go.mod h1:cCQjYyrRhucRSexgq1NfevwxfeFiSuyZRDTO23u3npw=
+github.com/Bush2021/chrome_update v0.5.0 h1:6hbksFtt6Sv9a8L6+17A8lqkamGeFMkpPB+lF+EgMWU=
+github.com/Bush2021/chrome_update v0.5.0/go.mod h1:VpR0thn8UBOr+ubh7ZD0838GNaBQlSkHh6e83CukcnI=
 github.com/andybalholm/brotli v1.2.2 h1:HzTuoo2ErYQqf5qvcJInB8uvqSVxRttzkFexPWtnceM=
 github.com/andybalholm/brotli v1.2.2/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
 github.com/bodgit/plumbing v1.3.0 h1:pf9Itz1JOQgn7vEOE7v7nlEfBykYqvUYioC61TwWCFU=
