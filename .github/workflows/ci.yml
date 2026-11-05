@@ -104,7 +104,27 @@ jobs:
           go tool mygo build -platform windows/amd64,windows/386,windows/arm64 -skip-installer
           git diff --exit-code
           cp "$RUNNER_TEMP/source-tree" build/source-tree
+      # One download per architecture, holding just pitstop.exe.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pitstop-x64-${{ steps.version.outputs.version }}
+          path: build/windows-amd64/pitstop.exe
+          if-no-files-found: error
+          overwrite: true
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pitstop-x86-${{ steps.version.outputs.version }}
+          path: build/windows-386/pitstop.exe
+          if-no-files-found: error
+          overwrite: true
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pitstop-arm64-${{ steps.version.outputs.version }}
+          path: build/windows-arm64/pitstop.exe
+          if-no-files-found: error
+          overwrite: true
       - name: Package release files
+        if: github.event_name == 'workflow_dispatch' && inputs.version != ''
         # Self-update replaces pitstop.exe by name, so each architecture's
         # zip holds it under that name.
         run: |
@@ -116,8 +136,9 @@ jobs:
           cd build/dist
           sha256sum * > SHA256SUMS
       - uses: actions/upload-artifact@v7
+        if: github.event_name == 'workflow_dispatch' && inputs.version != ''
         with:
-          name: pitstop-windows-${{ steps.version.outputs.version }}
+          name: release-files-${{ steps.version.outputs.version }}
           path: |
             build/dist/*
             build/source-tree
@@ -135,7 +156,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/download-artifact@v8
         with:
-          name: pitstop-windows-${{ inputs.version }}
+          name: release-files-${{ inputs.version }}
           path: release-build
       - name: Create version pull request
         env:

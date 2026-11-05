@@ -71,7 +71,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
-          pattern: pitstop-windows-*
+          pattern: release-files-*
           path: release-build
           merge-multiple: true
           github-token: ${{ github.token }}
