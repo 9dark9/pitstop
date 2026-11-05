@@ -71,7 +71,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
-          pattern: pitstop-windows-amd64-*
+          pattern: pitstop-windows-*
           path: release-build
           merge-multiple: true
           github-token: ${{ github.token }}
@@ -121,7 +121,7 @@ jobs:
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
               --title "$VERSION" --generate-notes --prerelease="$PRERELEASE"
           fi
-          gh release upload "$tag" release-build/windows-amd64/* release-build/SHA256SUMS \
+          gh release upload "$tag" release-build/dist/* \
             --repo "$GITHUB_REPOSITORY" --clobber
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false \
             --prerelease="$PRERELEASE" --latest="$([ "$PRERELEASE" = false ] && echo true || echo false)"

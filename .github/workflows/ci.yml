@@ -26,17 +26,30 @@ jobs:
       - name: Vet Windows code
         env:
           GOOS: windows
-          GOARCH: amd64
-        run: go vet ./...
+        run: |
+          for arch in amd64 386 arm64; do
+            GOARCH=$arch go vet ./...
+          done
 
   test:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-latest, goarch: amd64 }
+          # 32-bit builds run natively on 64-bit Windows.
+          - { runner: windows-latest, goarch: '386' }
+          - { runner: windows-11-arm, goarch: arm64 }
+    name: test (${{ matrix.goarch }})
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: go test ./...
+        env:
+          GOARCH: ${{ matrix.goarch }}
 
   build:
     runs-on: ubuntu-latest
@@ -79,7 +92,7 @@ jobs:
           git add mygo.json
           git write-tree > "$RUNNER_TEMP/source-tree"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Build portable executable and update files
+      - name: Build portable executables and update files
         env:
           MYGO_UPDATER_PRIVATE_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' && secrets.MYGO_UPDATER_PRIVATE_KEY || '' }}
           INPUT_VERSION: ${{ inputs.version }}
@@ -88,15 +101,25 @@ jobs:
             echo '::error::MYGO_UPDATER_PRIVATE_KEY is required for a release build'
             exit 1
           fi
-          go tool mygo build -platform windows/amd64 -skip-installer
+          go tool mygo build -platform windows/amd64,windows/386,windows/arm64 -skip-installer
           git diff --exit-code
           cp "$RUNNER_TEMP/source-tree" build/source-tree
+      - name: Package release files
+        # Self-update replaces pitstop.exe by name, so every architecture
+        # reaches users under that name: x64 as it is, the others zipped.
+        run: |
+          mkdir build/dist
+          cp build/windows-amd64/pitstop.exe build/dist/
+          zip -X -j build/dist/pitstop-x86.zip build/windows-386/pitstop.exe
+          zip -X -j build/dist/pitstop-arm64.zip build/windows-arm64/pitstop.exe
+          find build/windows-* -type f ! -name pitstop.exe -exec cp -t build/dist {} +
+          cd build/dist
+          sha256sum * > SHA256SUMS
       - uses: actions/upload-artifact@v7
         with:
-          name: pitstop-windows-amd64-${{ steps.version.outputs.version }}
+          name: pitstop-windows-${{ steps.version.outputs.version }}
           path: |
-            build/windows-amd64/*
-            build/SHA256SUMS
+            build/dist/*
             build/source-tree
           if-no-files-found: error
           overwrite: true
@@ -112,7 +135,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/download-artifact@v8
         with:
-          name: pitstop-windows-amd64-${{ inputs.version }}
+          name: pitstop-windows-${{ inputs.version }}
           path: release-build
       - name: Create version pull request
         env:
