@@ -65,7 +65,7 @@ jobs:
              .path == ".github/workflows/ci.yml" and .conclusion == "success"'
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ steps.build.outputs.commit }}
           fetch-depth: 0
