@@ -19,7 +19,7 @@
 
 - **Native and lightweight**: Built with [MyGo](https://github.com/egoist/mygo), with low memory usage, Mica, and light and dark themes.
 - **Graphical configuration**: Manage [Chrome++ Next](https://github.com/Bush2021/chrome_plus) settings without editing INI files by hand. Configure tab and mouse behavior, hotkeys and startup options, including double-click tab closing, wheel tab switching, the boss key and page translation.
-- **Updates and rollback**: Manage Chrome and Chrome++ Next updates with manual, ask-first and automatic modes. Keep replaced versions by default, with portable-profile backups before milestone updates.
+- **Updates and rollback**: Manage Chrome and Chrome++ Next updates with manual, ask-first and automatic modes. In ask-first and automatic modes, an update finishes through Chrome's own Relaunch to update while Chrome runs. Replaced versions are kept by default.
 - **Portable**: Chrome, its profile and Pitstop's settings stay in one folder by default. English and Simplified Chinese interfaces are included.
 
 Settings support search in either language, shortcut recording and Chrome command selection. Changes are saved to `chrome++.ini`, preserving comments, key order and encoding. A diff preview is available before saving, and each save keeps a backup.
@@ -27,8 +27,6 @@ Settings support search in either language, shortcut recording and Chrome comman
 ![INI change preview](assets/screenshots/review-en.png)
 
 Background and in-app updates require Chrome++ Next 1.19.0 or later with `managed_updates` support. Older versions support manual updates.
-
-Profile backups cover only the portable `Data` folder. Switching back across milestones restores the matching profile copy; changes made in the newer profile stay with that profile.
 
 ## Download and use
 

@@ -418,16 +418,6 @@ func (msgs Messages) PhaseVerify() string {
 	return Catalog.Format(msgs.locale, "phaseVerify", nil)
 }
 
-// PhaseBackup says "Copying the profile"
-// in the language the app shows.
-func PhaseBackup() string { return In(i18n.Locale()).PhaseBackup() }
-
-// PhaseBackup says "Copying the profile"
-// in the language of msgs.
-func (msgs Messages) PhaseBackup() string {
-	return Catalog.Format(msgs.locale, "phaseBackup", nil)
-}
-
 // PhaseApply says "Applying changes"
 // in the language the app shows.
 func PhaseApply() string { return In(i18n.Locale()).PhaseApply() }
@@ -622,28 +612,16 @@ func (msgs Messages) SwitchBody(current string) string {
 	return Catalog.Format(msgs.locale, "switchBody", map[string]any{"current": current})
 }
 
-// SwitchMilestoneBody says "Chrome {version} is an earlier milestone than {current}, and Pitstop has no copy of the profile from before that upda…"
+// SwitchMilestoneBody says "Chrome {version} is an earlier milestone than {current}. Chrome doesn't convert a profile back, so data such as Histo…"
 // in the language the app shows.
 func SwitchMilestoneBody(version string, current string) string {
 	return In(i18n.Locale()).SwitchMilestoneBody(version, current)
 }
 
-// SwitchMilestoneBody says "Chrome {version} is an earlier milestone than {current}, and Pitstop has no copy of the profile from before that upda…"
+// SwitchMilestoneBody says "Chrome {version} is an earlier milestone than {current}. Chrome doesn't convert a profile back, so data such as Histo…"
 // in the language of msgs.
 func (msgs Messages) SwitchMilestoneBody(version string, current string) string {
 	return Catalog.Format(msgs.locale, "switchMilestoneBody", map[string]any{"version": version, "current": current})
-}
-
-// SwitchProfileBody says "Chrome {version} is an earlier milestone than {current}, so Pitstop also puts back the profile it copied before that …"
-// in the language the app shows.
-func SwitchProfileBody(version string, current string) string {
-	return In(i18n.Locale()).SwitchProfileBody(version, current)
-}
-
-// SwitchProfileBody says "Chrome {version} is an earlier milestone than {current}, so Pitstop also puts back the profile it copied before that …"
-// in the language of msgs.
-func (msgs Messages) SwitchProfileBody(version string, current string) string {
-	return Catalog.Format(msgs.locale, "switchProfileBody", map[string]any{"version": version, "current": current})
 }
 
 // SwitchConfirm says "Switch"
@@ -686,16 +664,6 @@ func DeleteBody() string { return In(i18n.Locale()).DeleteBody() }
 // in the language of msgs.
 func (msgs Messages) DeleteBody() string {
 	return Catalog.Format(msgs.locale, "deleteBody", nil)
-}
-
-// DeleteProfileBody says "The copy of the profile made for this version goes too. You won't be able to switch back to this version."
-// in the language the app shows.
-func DeleteProfileBody() string { return In(i18n.Locale()).DeleteProfileBody() }
-
-// DeleteProfileBody says "The copy of the profile made for this version goes too. You won't be able to switch back to this version."
-// in the language of msgs.
-func (msgs Messages) DeleteProfileBody() string {
-	return Catalog.Format(msgs.locale, "deleteProfileBody", nil)
 }
 
 // DoneInstalled says "{name} {version} is ready"
@@ -918,11 +886,11 @@ func (msgs Messages) UpdatesKeep() string {
 	return Catalog.Format(msgs.locale, "updatesKeep", nil)
 }
 
-// UpdatesKeepHelp says "Updates leave the version they replace, so you can switch back. A new milestone also copies your profile first. When …"
+// UpdatesKeepHelp says "Updates leave the version they replace, so you can switch back. When this is off, the next update clears them."
 // in the language the app shows.
 func UpdatesKeepHelp() string { return In(i18n.Locale()).UpdatesKeepHelp() }
 
-// UpdatesKeepHelp says "Updates leave the version they replace, so you can switch back. A new milestone also copies your profile first. When …"
+// UpdatesKeepHelp says "Updates leave the version they replace, so you can switch back. When this is off, the next update clears them."
 // in the language of msgs.
 func (msgs Messages) UpdatesKeepHelp() string {
 	return Catalog.Format(msgs.locale, "updatesKeepHelp", nil)
@@ -1048,11 +1016,11 @@ func (msgs Messages) AskBody() string {
 	return Catalog.Format(msgs.locale, "askBody", nil)
 }
 
-// AskDetail says "Pitstop applies the update after you close Chrome. Before a new milestone, it backs up your profile first."
+// AskDetail says "Pitstop applies the update after you close Chrome."
 // in the language the app shows.
 func AskDetail() string { return In(i18n.Locale()).AskDetail() }
 
-// AskDetail says "Pitstop applies the update after you close Chrome. Before a new milestone, it backs up your profile first."
+// AskDetail says "Pitstop applies the update after you close Chrome."
 // in the language of msgs.
 func (msgs Messages) AskDetail() string {
 	return Catalog.Format(msgs.locale, "askDetail", nil)
@@ -1442,11 +1410,11 @@ func (msgs Messages) OptDataDir() string {
 	return Catalog.Format(msgs.locale, "optDataDir", nil)
 }
 
-// OptDataDirNote says "Chrome uses the profile it finds in this folder. Before a new milestone, Pitstop backs up only the Data folder."
+// OptDataDirNote says "Chrome uses the profile it finds in this folder."
 // in the language the app shows.
 func OptDataDirNote() string { return In(i18n.Locale()).OptDataDirNote() }
 
-// OptDataDirNote says "Chrome uses the profile it finds in this folder. Before a new milestone, Pitstop backs up only the Data folder."
+// OptDataDirNote says "Chrome uses the profile it finds in this folder."
 // in the language of msgs.
 func (msgs Messages) OptDataDirNote() string {
 	return Catalog.Format(msgs.locale, "optDataDirNote", nil)

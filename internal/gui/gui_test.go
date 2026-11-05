@@ -278,15 +278,7 @@ func TestSwitchBackAcrossMilestones(t *testing.T) {
 	h.want("Google Chrome 156.0.8078.74")
 
 	h.click("Switch to 155.0.8059.85")
-	h.want("so Pitstop also puts back the profile it copied before that update")
-	h.shot("switch-profile")
-	h.click("Cancel")
-	h.tt.Frame()
-
-	// As if the update came before Pitstop copied profiles.
-	os.RemoveAll(filepath.Join(h.a.in.Meta(), "backup"))
-	h.click("Switch to 155.0.8059.85")
-	h.want("Pitstop has no copy of the profile from before that update")
+	h.want("Chrome doesn't convert a profile back")
 	h.shot("switch-milestone")
 }
 
@@ -299,11 +291,11 @@ func TestDeleteKeptVersion(t *testing.T) {
 	h.settle()
 	h.click("Update to 156.0.8078.74")
 	h.settle()
-	h.want("Chrome 155.0.8059.85 is kept", mb(h.a.kept.Chrome+h.a.kept.Profile))
+	h.want("Chrome 155.0.8059.85 is kept", mb(h.a.kept.Chrome))
 	h.shot("overview-delete")
 
 	h.click("Delete")
-	h.want("Delete Chrome 155.0.8059.85?", "The copy of the profile made for this version goes too.")
+	h.want("Delete Chrome 155.0.8059.85?", locales.DeleteBody())
 	h.shot("delete-chrome")
 	// The dialog's button comes after the row's, which the dialog covers.
 	cancel, _ := h.tt.Find("Cancel")

@@ -544,8 +544,6 @@ func phaseLabel(p pitstop.Phase) string {
 		return locales.PhaseUnpack()
 	case pitstop.Verifying:
 		return locales.PhaseVerify()
-	case pitstop.BackingUp:
-		return locales.PhaseBackup()
 	case pitstop.Applying:
 		return locales.PhaseApply()
 	case pitstop.Closing:
@@ -630,7 +628,7 @@ func (a *App) keptCard(c *ui.Context) {
 			})
 		}
 		if okChrome {
-			row(locales.RollbackChrome(chrome), chrome, "chrome", a.kept.Chrome+a.kept.Profile)
+			row(locales.RollbackChrome(chrome), chrome, "chrome", a.kept.Chrome)
 		}
 		if okPlus {
 			row(locales.RollbackPlus(plus), plus, "chromeplus", a.kept.Plus)
@@ -700,9 +698,6 @@ func (a *App) dialogs(c *ui.Context) {
 		body := locales.SwitchBody(current)
 		if a.switching == "chrome" && pitstop.Milestone(version) < pitstop.Milestone(current) {
 			body = locales.SwitchMilestoneBody(version, current)
-			if a.engine.ProfileKept(version) {
-				body = locales.SwitchProfileBody(version, current)
-			}
 		}
 		if ui.AlertDialog(c, &a.switchOpen, locales.SwitchTitle(version), body, locales.CancelButton(), locales.SwitchConfirm()) == 1 {
 			a.switchTo(a.switching)
@@ -714,9 +709,6 @@ func (a *App) dialogs(c *ui.Context) {
 		if a.deleting == "chrome" {
 			name = "Chrome"
 			version, _ = a.engine.ChromeRollback()
-			if a.kept.Profile > 0 {
-				body = locales.DeleteProfileBody()
-			}
 		}
 		if ui.AlertDialog(c, &a.deleteOpen, locales.DeleteTitle(name, version), body, locales.CancelButton(), locales.DeleteButton()) == 1 {
 			a.deleteKept(a.deleting)

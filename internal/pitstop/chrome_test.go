@@ -196,7 +196,7 @@ func TestMoveDataRefusesAFolderInUse(t *testing.T) {
 	}
 }
 
-// The move across volumes keeps what a backup leaves out: it's the only copy.
+// The move across volumes keeps every file, caches included: it's the only copy.
 func TestMoveByCopy(t *testing.T) {
 	engine, _ := chromeEngine(t)
 	dir := t.TempDir()

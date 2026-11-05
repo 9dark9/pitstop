@@ -232,7 +232,7 @@ func TestInstallApproved(t *testing.T) {
 		t.Fatalf("InstallApproved = %q, %v, after %d downloads", v, err, s.Gets.Load()-downloads)
 	}
 	in, _ := engine.Open()
-	if in.Chrome != "156.0.8078.74" || in.State.Approved != "" || !engine.ProfileKept("155.0.8059.85") {
+	if in.Chrome != "156.0.8078.74" || in.State.Approved != "" {
 		t.Fatalf("after the install: %s, approved %q", in.Chrome, in.State.Approved)
 	}
 }

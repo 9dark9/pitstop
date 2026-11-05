@@ -376,8 +376,6 @@ func TestRollbackAcrossMilestones(t *testing.T) {
 	if err := engine.RollbackChrome(context.Background(), false); !errors.Is(err, ErrMilestone) {
 		t.Fatalf("RollbackChrome = %v", err)
 	}
-	// As if the update came before Pitstop copied profiles.
-	os.RemoveAll(engine.path(backup))
 	os.WriteFile(engine.path(data, "Local State"), []byte("156"), 0o644)
 	if err := engine.RollbackChrome(context.Background(), true); err != nil {
 		t.Fatal(err)
@@ -388,12 +386,11 @@ func TestRollbackAcrossMilestones(t *testing.T) {
 	if got := files(t, engine.path(data)); got["Local State"] != "156" {
 		t.Errorf("Data holds %v", got)
 	}
-	// Going up a milestone again copies the profile first.
 	if err := engine.RollbackChrome(context.Background(), false); err != nil {
 		t.Fatal(err)
 	}
-	if got := files(t, engine.path(backup, "data-155.0.8059.85")); got["Local State"] != "156" {
-		t.Errorf("the copy holds %v", got)
+	if in, _ := engine.Open(); in.Chrome != "156.0.8078.74" {
+		t.Errorf("switched up to %s", in.Chrome)
 	}
 }
 
@@ -451,32 +448,21 @@ func milestoneUpdate(t *testing.T) (*pitstoptest.Servers, *Engine, *ChromeUpdate
 	return s, engine, u
 }
 
-func TestMilestoneUpdateWaitsForChromeToClose(t *testing.T) {
-	s, engine, u := milestoneUpdate(t)
+func TestMilestoneUpdateStagesWhileChromeRuns(t *testing.T) {
+	_, engine, u := milestoneUpdate(t)
 	pitstoptest.WriteManagedChromePlus(t, engine.path(app, "version.dll"), "1.19.0")
 	engine.SetPolicy(install.Ask)
-	closeChrome := running(engine)
-	if _, err := engine.UpdateChrome(context.Background(), u); !errors.Is(err, ErrChromeRunning) {
-		t.Fatalf("UpdateChrome while Chrome runs = %v", err)
+	running(engine)
+	if outcome, err := engine.UpdateChrome(context.Background(), u); outcome != Staged || err != nil {
+		t.Fatalf("UpdateChrome while Chrome runs = %v, %v", outcome, err)
 	}
 	in, _ := engine.Open()
-	if in.Chrome != "155.0.8059.85" || in.Staged != "" || exists(engine.path(app, "new_chrome.exe")) {
-		t.Fatalf("staged a new milestone while Chrome ran: %+v", in)
-	}
-	if got := entries(t, engine.path(backup)); len(got) > 0 {
-		t.Errorf("backup holds %v", got)
-	}
-	closeChrome()
-	downloads := s.Gets.Load()
-	if _, err := engine.UpdateChrome(context.Background(), u); err != nil {
-		t.Fatal(err)
-	}
-	if in, _ := engine.Open(); in.Chrome != "156.0.8078.74" || s.Gets.Load() != downloads {
-		t.Errorf("after Chrome closed: %s, after %d downloads", in.Chrome, s.Gets.Load()-downloads)
+	if in.Chrome != "155.0.8059.85" || in.Staged != u.Version || !exists(engine.path(app, "new_chrome.exe")) {
+		t.Fatalf("after staging: %+v", in)
 	}
 }
 
-func TestMilestoneUpdateKeepsTheProfile(t *testing.T) {
+func TestMilestoneUpdateLeavesTheProfile(t *testing.T) {
 	_, engine, u := milestoneUpdate(t)
 	var phases []Phase
 	engine.Progress = func(st Step) {
@@ -487,77 +473,22 @@ func TestMilestoneUpdateKeepsTheProfile(t *testing.T) {
 	if _, err := engine.UpdateChrome(context.Background(), u); err != nil {
 		t.Fatal(err)
 	}
-	if got := fmt.Sprint(phases); got != "[download decode unpack verify backup apply]" {
+	if got := fmt.Sprint(phases); got != "[download decode unpack verify apply]" {
 		t.Errorf("phases %s", got)
-	}
-	want := `map[Default/Extensions/abc/GPUCache/own:an extension's own folder Default/History:155 Local State:155]`
-	if got := fmt.Sprint(files(t, engine.path(backup, "data-155.0.8059.85"))); got != want {
-		t.Errorf("the copy holds %s", got)
 	}
 	if got := files(t, engine.path(data)); len(got) != 6 {
 		t.Errorf("Data changed: %v", got)
 	}
-
-	// Chrome 156 used the profile.
-	writeFiles(t, engine.path(data), map[string]string{"Local State": "156", "Default/History": "156"})
-	if !engine.ProfileKept("155.0.8059.85") {
-		t.Fatal("ProfileKept = false")
-	}
+	writeFiles(t, engine.path(data), map[string]string{"Default/History": "156"})
 	if err := engine.RollbackChrome(context.Background(), true); err != nil {
 		t.Fatal(err)
 	}
 	in, _ := engine.Open()
-	if got := files(t, engine.path(data)); in.Chrome != "155.0.8059.85" || got["Default/History"] != "155" || len(got) != 3 {
+	if got := files(t, engine.path(data)); in.Chrome != "155.0.8059.85" || got["Default/History"] != "156" || len(got) != 6 {
 		t.Fatalf("after the switch back: %s, Data holds %v", in.Chrome, got)
-	}
-	if got := files(t, engine.path(backup, "data-156.0.8078.74")); got["Default/History"] != "156" || len(got) != 6 {
-		t.Errorf("the newer profile kept is %v", got)
-	}
-	if got := entries(t, engine.path(backup)); len(got) != 1 || engine.ProfileKept("155.0.8059.85") {
-		t.Errorf("backup holds %v", got)
-	}
-
-	if err := engine.RollbackChrome(context.Background(), false); err != nil {
-		t.Fatal(err)
-	}
-	in, _ = engine.Open()
-	if got := files(t, engine.path(data)); in.Chrome != "156.0.8078.74" || got["Default/History"] != "156" {
-		t.Fatalf("after switching to 156 again: %s, Data holds %v", in.Chrome, got)
-	}
-	if got := entries(t, engine.path(backup)); fmt.Sprint(got) != "[data-155.0.8059.85]" {
-		t.Errorf("backup holds %v", got)
 	}
 	if exists(engine.path(journal)) {
 		t.Error("a journal is left")
-	}
-}
-
-func TestChromeStartingDuringTheCopyStopsTheUpdate(t *testing.T) {
-	s, engine, u := milestoneUpdate(t)
-	calls := 0
-	engine.Hooks.Running = func(dir string) ([]chromeproc.Process, error) {
-		// The first look is before the copy, the second after it.
-		if calls++; calls == 1 {
-			return nil, nil
-		}
-		return []chromeproc.Process{{PID: 42, Path: filepath.Join(dir, "chrome.exe")}}, nil
-	}
-	if _, err := engine.UpdateChrome(context.Background(), u); !errors.Is(err, ErrChromeRunning) {
-		t.Fatalf("UpdateChrome = %v", err)
-	}
-	if in, _ := engine.Open(); in.Chrome != "155.0.8059.85" {
-		t.Fatalf("updated to %s", in.Chrome)
-	}
-	if got := entries(t, engine.path(backup)); len(got) > 0 {
-		t.Errorf("backup holds %v", got)
-	}
-	engine.Hooks.Running = func(string) ([]chromeproc.Process, error) { return nil, nil }
-	downloads := s.Gets.Load()
-	if _, err := engine.UpdateChrome(context.Background(), u); err != nil {
-		t.Fatal(err)
-	}
-	if !engine.ProfileKept("155.0.8059.85") || s.Gets.Load() != downloads {
-		t.Errorf("ProfileKept = %v, after %d downloads", engine.ProfileKept("155.0.8059.85"), s.Gets.Load()-downloads)
 	}
 }
 

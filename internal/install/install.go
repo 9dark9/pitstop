@@ -266,9 +266,8 @@ type State struct {
 	// ApprovedPlus the Chrome++ one.
 	Approved     string `json:"approved,omitempty"`
 	ApprovedPlus string `json:"approvedPlus,omitempty"`
-	// DiscardReplaced has an update delete what it replaces, and skip the
-	// copy of the profile. A switch between versions still keeps the current
-	// one.
+	// DiscardReplaced has an update delete what it replaces. A switch
+	// between versions still keeps the current one.
 	DiscardReplaced bool    `json:"discardReplaced,omitempty"`
 	History         []Event `json:"history,omitempty"`
 }

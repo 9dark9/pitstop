@@ -156,7 +156,7 @@ func TestApprovedMilestoneGoesInOnceChromeExits(t *testing.T) {
 	w.ui.approve = true
 	w.run(t, nil)
 	in := w.open(t)
-	if in.Chrome != "156.0.8078.74" || in.State.Approved != "" || !w.engine.ProfileKept("155.0.8059.85") {
+	if in.Chrome != "156.0.8078.74" || in.State.Approved != "" {
 		t.Fatalf("Chrome %s, approved %q", in.Chrome, in.State.Approved)
 	}
 	if got := fmt.Sprint(w.ui.calls); got != "[ask 156.0.8078.74 installed Chrome 156.0.8078.74]" {
@@ -258,7 +258,7 @@ func (r *restarting) Installed(what string) {
 	r.w.chrome = true
 }
 
-// Chrome can't swap a milestone in, so Pitstop installs it once Chrome exits.
+// Without managed updates, Pitstop installs the build once Chrome exits.
 func TestAutomaticMilestoneGoesInOnceChromeExits(t *testing.T) {
 	w := newWorld(t, "155.", install.Automatic, "155.0.8059.85", "156.0.8078.74")
 	w.run(t, nil)

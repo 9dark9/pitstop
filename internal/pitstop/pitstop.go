@@ -5,9 +5,7 @@
 // transaction while Chrome is closed. The files it replaces are kept for a
 // rollback, unless the user turned that off. While Chrome runs, an install
 // that opted in gets the new Chrome staged in App instead, for Chrome to swap
-// in when it restarts. A new milestone goes in only while Chrome is closed,
-// once the profile in Data is copied, since Chrome doesn't convert a profile
-// back.
+// in when it restarts.
 //
 // Pitstop's files sit in the install's .pitstop folder:
 //
@@ -18,7 +16,6 @@
 //	staging\chromeplus-<release>\   version.dll and the default chrome++.ini
 //	rollback\chrome-<version>\      the build an update replaced
 //	rollback\chromeplus-<release>\  the Chrome++ an update replaced
-//	backup\data-<version>\          the profile Chrome <version> used
 package pitstop
 
 import (
@@ -109,7 +106,6 @@ const (
 	Decoding    Phase = "decode"
 	Unpacking   Phase = "unpack"
 	Verifying   Phase = "verify"
-	BackingUp   Phase = "backup"
 	Applying    Phase = "apply"
 	Closing     Phase = "close"
 	Moving      Phase = "move"
@@ -286,12 +282,11 @@ const (
 
 // UpdateChrome installs u in place of the install's build, which it keeps
 // for a rollback. It downloads and stages u while Chrome runs. If Chrome
-// still runs once u is staged, a patch release of an install that opted in
-// goes into App for Chrome to swap in. Otherwise it returns a *RunningError
-// and keeps the staged build for the next attempt. Before a new milestone
-// goes in, it copies the profile, which a switch back puts back. With
-// State.DiscardReplaced it keeps neither. It returns ErrPatched, before any
-// download, when setdll patched chrome.exe.
+// still runs once u is staged, an install that opted in gets u in App for
+// Chrome to swap in. Otherwise it returns a *RunningError and keeps the
+// staged build for the next attempt. With State.DiscardReplaced it keeps
+// nothing. It returns ErrPatched, before any download, when setdll patched
+// chrome.exe.
 func (e *Engine) UpdateChrome(ctx context.Context, u *ChromeUpdate) (Outcome, error) {
 	l, err := e.lock()
 	if err != nil {
@@ -333,10 +328,7 @@ func (e *Engine) UpdateChrome(ctx context.Context, u *ChromeUpdate) (Outcome, er
 // place puts the verified build at dir in, or hands it to Chrome.
 func (e *Engine) place(ctx context.Context, in *install.Install, dir, version string, ch omaha.Channel) (Outcome, error) {
 	running := e.closed()
-	// Chrome swaps a staged build in during its own exit or start, which
-	// leaves no moment to copy the profile.
-	milestone := Milestone(version) > Milestone(in.Chrome)
-	if errors.Is(running, ErrChromeRunning) && !milestone && optedIn(in) && e.swappableInUse(dir, version) {
+	if errors.Is(running, ErrChromeRunning) && optedIn(in) && e.swappableInUse(dir, version) {
 		if err := e.stageInUse(dir, version); err != nil {
 			return 0, err
 		}
@@ -350,13 +342,7 @@ func (e *Engine) place(ctx context.Context, in *install.Install, dir, version st
 	if running != nil {
 		return 0, running
 	}
-	discard := in.State.DiscardReplaced
-	if milestone && !discard {
-		if err := e.backupProfile(ctx, in.Chrome); err != nil {
-			return 0, err
-		}
-	}
-	if err := e.swapChrome(ctx, in, dir, version, nil, discard); err != nil {
+	if err := e.swapChrome(ctx, in, dir, version, in.State.DiscardReplaced); err != nil {
 		return 0, err
 	}
 	return Installed, e.record(install.Event{Kind: install.ChromeUpdated, From: in.Chrome, To: version},
@@ -504,10 +490,8 @@ func (e *Engine) ChromeRollback() (string, bool) {
 }
 
 // RollbackChrome swaps the kept build back in, and keeps the current one in
-// its place. Across milestones, a kept copy of the profile the kept build
-// used is swapped in with it; without one, a switch to a later milestone
-// copies the profile first. Going back to an earlier milestone returns
-// ErrMilestone unless acrossMilestones is set. It returns ErrPatched when
+// its place. Going back to an earlier milestone returns ErrMilestone unless
+// acrossMilestones is set. It returns ErrPatched when
 // setdll patched chrome.exe.
 func (e *Engine) RollbackChrome(ctx context.Context, acrossMilestones bool) error {
 	l, err := e.lock()
@@ -541,23 +525,13 @@ func (e *Engine) RollbackChrome(ctx context.Context, acrossMilestones bool) erro
 			return err
 		}
 	}
-	var profile []apply.Move
-	switch {
-	case Milestone(v) != Milestone(in.Chrome) && e.ProfileKept(v):
-		profile = e.swapProfile(in.Chrome, v)
-	case Milestone(v) > Milestone(in.Chrome):
-		if err := e.backupProfile(ctx, in.Chrome); err != nil {
-			return err
-		}
-	}
-	if err := e.swapChrome(ctx, in, rollback+"/chrome-"+v, v, profile, false); err != nil {
+	if err := e.swapChrome(ctx, in, rollback+"/chrome-"+v, v, false); err != nil {
 		return err
 	}
 	return e.record(install.Event{Kind: install.ChromeRolledBack, From: in.Chrome, To: v}, nil)
 }
 
-// DeleteChromeRollback deletes the kept build and any copy of the profile,
-// which only a switch to it would use. Chrome may be running.
+// DeleteChromeRollback deletes the kept build. Chrome may be running.
 func (e *Engine) DeleteChromeRollback() error {
 	return e.deleteKept("Chrome", e.ChromeRollback, func(v string) []string { return e.staleKept(v, true) })
 }
@@ -587,16 +561,14 @@ func (e *Engine) deleteKept(name string, version func() (string, bool), remove f
 	return e.record(install.Event{Kind: install.KeptDeleted, To: what}, nil)
 }
 
-// KeptSizes is the disk use of what is kept, in bytes: Profile for the copies
-// of the profile, which go with the kept Chrome.
-type KeptSizes struct{ Chrome, Profile, Plus int64 }
+// KeptSizes is the disk use of what is kept, in bytes.
+type KeptSizes struct{ Chrome, Plus int64 }
 
 func (e *Engine) KeptSizes() KeptSizes {
 	var k KeptSizes
 	for _, rel := range e.kept("chrome-") {
 		k.Chrome += folderSize(e.path(rel))
 	}
-	k.Profile = folderSize(e.path(backup))
 	for _, rel := range e.kept("chromeplus-") {
 		k.Plus += folderSize(e.path(rel))
 	}
@@ -635,21 +607,13 @@ func (e *Engine) kept(prefix string, except ...string) []string {
 	return out
 }
 
-// staleKept lists what goes once Chrome version is the one kept: the other
-// kept builds, and the copies of the profile but version's, as only a switch
-// to their build would use them. With discard, version's go too.
+// staleKept lists the kept builds that go once Chrome version is the one
+// kept. With discard, version's goes too.
 func (e *Engine) staleKept(version string, discard bool) []string {
 	keep := rollback + "/chrome-" + version
-	profile := "data-" + version
 	out := e.kept("chrome-", keep)
 	if discard {
-		out, profile = append(out, keep), ""
-	}
-	entries, _ := os.ReadDir(e.path(backup))
-	for _, entry := range entries {
-		if entry.Name() != profile {
-			out = append(out, backup+"/"+entry.Name())
-		}
+		out = append(out, keep)
 	}
 	return out
 }
@@ -783,11 +747,10 @@ func verifyChrome(dir, version string) error {
 }
 
 // swapChrome moves the install's build into rollback and the build in from
-// (relative to the root) into App, in one transaction with the profile
-// moves. The build's files are chrome.exe, chrome_proxy.exe and the version
+// (relative to the root) into App, in one transaction. The build's files are chrome.exe, chrome_proxy.exe and the version
 // folder; Chrome++, its settings and anything else in App stay. With discard,
 // the replaced build goes once the transaction commits. Chrome must be closed.
-func (e *Engine) swapChrome(ctx context.Context, in *install.Install, from, version string, profile []apply.Move, discard bool) error {
+func (e *Engine) swapChrome(ctx context.Context, in *install.Install, from, version string, discard bool) error {
 	entries, err := os.ReadDir(e.path(from))
 	if err != nil {
 		return err
@@ -797,7 +760,7 @@ func (e *Engine) swapChrome(ctx context.Context, in *install.Install, from, vers
 	if err := os.RemoveAll(e.path(keep)); err != nil {
 		return err
 	}
-	tx := apply.Tx{Op: fmt.Sprintf("Chrome %s to %s", in.Chrome, version), Moves: profile}
+	tx := apply.Tx{Op: fmt.Sprintf("Chrome %s to %s", in.Chrome, version)}
 	out := []string{"chrome.exe", "chrome_proxy.exe", in.Chrome}
 	for _, entry := range entries {
 		if !slices.Contains(out, entry.Name()) {
