@@ -304,7 +304,7 @@
   "swCacheSize": "限制磁盘缓存大小（字节）",
 
   "aboutVersion": "版本 {version} · GPL-3.0-or-later",
-  "aboutBody": "部署、更新和配置便携版 Chrome。",
+  "aboutBody": "在 Windows 上部署、更新和配置便携版 Chrome。",
 
   "languageLabel": "语言",
   "languageSystem": "跟随系统",

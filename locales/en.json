@@ -307,7 +307,7 @@
   "swCacheSize": "Limit the disk cache, in bytes",
 
   "aboutVersion": "Version {version} · GPL-3.0-or-later",
-  "aboutBody": "Set up, update and configure portable Chrome.",
+  "aboutBody": "Set up, update and configure portable Chrome on Windows.",
 
   "languageLabel": "Language",
   "languageSystem": "System default",

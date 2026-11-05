@@ -2880,11 +2880,11 @@ func (msgs Messages) AboutVersion(version string) string {
 	return Catalog.Format(msgs.locale, "aboutVersion", map[string]any{"version": version})
 }
 
-// AboutBody says "Set up, update and configure portable Chrome."
+// AboutBody says "Set up, update and configure portable Chrome on Windows."
 // in the language the app shows.
 func AboutBody() string { return In(i18n.Locale()).AboutBody() }
 
-// AboutBody says "Set up, update and configure portable Chrome."
+// AboutBody says "Set up, update and configure portable Chrome on Windows."
 // in the language of msgs.
 func (msgs Messages) AboutBody() string {
 	return Catalog.Format(msgs.locale, "aboutBody", nil)
