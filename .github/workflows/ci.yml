@@ -163,25 +163,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
         run: |
-          branch="release/$GITHUB_RUN_ID"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          branch=release
+          git config user.name 'Bush2021'
+          git config user.email '79072750+Bush2021@users.noreply.github.com'
           git switch -c "$branch"
           jq --arg version "$VERSION" '.version = $version' mygo.json > mygo.json.tmp
           mv mygo.json.tmp mygo.json
           git add mygo.json
           test "$(git write-tree)" = "$(cat release-build/source-tree)"
           git commit -m "Update version to $VERSION" -m "Build-Run-Id: $GITHUB_RUN_ID"
-          existing_branch=$(git ls-remote origin "refs/heads/$branch")
-          if [ -n "$existing_branch" ]; then
-            git fetch origin "refs/heads/$branch"
-            test "$(git rev-parse 'FETCH_HEAD^{tree}')" = "$(git rev-parse 'HEAD^{tree}')"
-          else
-            git push origin "HEAD:refs/heads/$branch"
-          fi
-          existing_pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --state all --json url --jq '.[0].url // empty')
+          git push --force origin "HEAD:refs/heads/$branch"
+          existing_pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --state open --json url --jq '.[0].url // empty')
           if [ -n "$existing_pr" ]; then
-            echo "$existing_pr"
+            gh pr edit "$existing_pr" --repo "$GITHUB_REPOSITORY" \
+              --title "Update version to $VERSION" --body "Build-Run-Id: $GITHUB_RUN_ID"
           else
             gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" \
               --title "Update version to $VERSION" --body "Build-Run-Id: $GITHUB_RUN_ID"
