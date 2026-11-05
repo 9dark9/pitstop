@@ -54,8 +54,15 @@ type Install struct {
 	// Staged is the version of the build waiting in App for Chrome to swap
 	// in when it restarts ("" without one).
 	Staged string
-	State  State
+	// Unsettled reports whether Pitstop has yet to keep or remove the build
+	// that Chrome swapped out.
+	Unsettled bool
+	State     State
 }
+
+// Unsettled reports whether the build Chrome swapped out, as old_chrome.exe,
+// is still in App.
+func Unsettled(root string) bool { return isFile(filepath.Join(root, AppDir, "old_chrome.exe")) }
 
 const (
 	AppDir  = "App"
@@ -103,6 +110,7 @@ func Open(root string) (*Install, error) {
 		return nil, fmt.Errorf("App\\%s\\chrome.dll is missing: the install is incomplete", in.Chrome)
 	}
 	in.Staged = stagedVersion(in.App())
+	in.Unsettled = Unsettled(root)
 
 	imports, err := pefile.ImportedDLLs(f, pf)
 	if err != nil {

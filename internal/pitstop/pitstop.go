@@ -214,7 +214,7 @@ func (e *Engine) UpdateState(change func(*install.State)) error {
 // in when it restarted. Settling waits for the next change if the install
 // is busy.
 func (e *Engine) Open() (*install.Install, error) {
-	if exists(e.path(app, "old_chrome.exe")) {
+	if install.Unsettled(e.Root) {
 		if l, err := e.lock(); err == nil {
 			e.settle()
 			l.Unlock()

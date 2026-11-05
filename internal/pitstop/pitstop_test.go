@@ -293,6 +293,35 @@ func TestUpdateWhileChromeRunsGoesInAtItsRestart(t *testing.T) {
 	}
 }
 
+// A file of the swapped-out build can stay in use after Chrome restarts.
+func TestSettleWaitsForTheReplacedBuildToBeFree(t *testing.T) {
+	_, engine, _ := stageWhileRunning(t)
+	app := engine.path(app)
+	swapStaged(t, app, -1)
+	f, err := os.Open(filepath.Join(app, "156.0.8078.48", "chrome.dll"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := engine.Open()
+	f.Close()
+	if err != nil || in.Chrome != "156.0.8078.74" || !in.Unsettled {
+		t.Fatalf("while in use: %+v, %v", in, err)
+	}
+	if _, ok := engine.ChromeRollback(); ok {
+		t.Error("kept the build while in use")
+	}
+	in, err = engine.Open()
+	if err != nil || in.Unsettled {
+		t.Fatalf("once free: %+v, %v", in, err)
+	}
+	if v, ok := engine.ChromeRollback(); !ok || v != "156.0.8078.48" {
+		t.Errorf("ChromeRollback = %q, %v", v, ok)
+	}
+	if e := in.State.History[0]; e.Kind != install.ChromeUpdated || e.From != "156.0.8078.48" {
+		t.Errorf("history starts with %+v", e)
+	}
+}
+
 func TestStagedBuildGoesInOnceChromeCloses(t *testing.T) {
 	s, engine, closeChrome := stageWhileRunning(t)
 	in, _ := engine.Open()

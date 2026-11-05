@@ -34,6 +34,7 @@
   "statusUpToDate": "已是最新",
   "statusAvailable": "{version} 可用（{size}）",
   "statusStaged": "{version} 已就绪，重启 Chrome 后生效",
+  "statusUnsettled": "被替换的版本还没整理完，Pitstop 会自动重试。",
   "statusWaiting": "关闭 Chrome 后更新到 {version}",
   "checkButton": "检查更新",
   "updateButton": "更新到 {version}",

@@ -146,7 +146,10 @@ func New(engine *pitstop.Engine, version string, host Host) *App {
 
 // Watch keeps the window current: nothing tells when Chrome starts or stops,
 // or when the background mode changes the install. Every such change ends by
-// saving the state.
+// saving the state. A build Chrome swapped out may stay in use after Chrome
+// restarts, so opening the install retries settling it until that succeeds.
+// Settling can wait seconds for a file, so the install opens off the UI
+// thread.
 func (a *App) Watch() {
 	running := a.running
 	state := install.StateTime(a.engine.Root)
@@ -160,8 +163,14 @@ func (a *App) Watch() {
 			}
 			if now := install.StateTime(a.engine.Root); !now.Equal(state) {
 				state = now
-				kept := a.engine.KeptSizes()
-				a.Post(func() { a.refresh(kept) })
+				if in, err := a.engine.Open(); err == nil {
+					kept := a.engine.KeptSizes()
+					a.Post(func() { a.refresh(in, kept) })
+				}
+			} else if install.Unsettled(a.engine.Root) {
+				if in, err := a.engine.Open(); err == nil {
+					a.Post(func() { a.refresh(in, a.kept) })
+				}
 			}
 		}
 	}()
@@ -170,12 +179,8 @@ func (a *App) Watch() {
 // refresh shows what the background mode did. It leaves chrome++.ini and its
 // unsaved edits alone, as the background mode doesn't change the file, and
 // work of this window reloads when it ends.
-func (a *App) refresh(kept pitstop.KeptSizes) {
+func (a *App) refresh(in *install.Install, kept pitstop.KeptSizes) {
 	if a.busy || a.in == nil {
-		return
-	}
-	in, err := a.engine.Open()
-	if err != nil {
 		return
 	}
 	a.in, a.kept = in, kept

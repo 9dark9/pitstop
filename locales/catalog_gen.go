@@ -328,6 +328,16 @@ func (msgs Messages) StatusStaged(version string) string {
 	return Catalog.Format(msgs.locale, "statusStaged", map[string]any{"version": version})
 }
 
+// StatusUnsettled says "Pitstop hasn't finished putting away the replaced version. It keeps trying."
+// in the language the app shows.
+func StatusUnsettled() string { return In(i18n.Locale()).StatusUnsettled() }
+
+// StatusUnsettled says "Pitstop hasn't finished putting away the replaced version. It keeps trying."
+// in the language of msgs.
+func (msgs Messages) StatusUnsettled() string {
+	return Catalog.Format(msgs.locale, "statusUnsettled", nil)
+}
+
 // StatusWaiting says "{version} will be applied after you close Chrome"
 // in the language the app shows.
 func StatusWaiting(version string) string { return In(i18n.Locale()).StatusWaiting(version) }

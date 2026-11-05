@@ -220,7 +220,11 @@ func TestRefreshShowsBackgroundWork(t *testing.T) {
 	if _, err := h.engine.UpdateChrome(context.Background(), h.a.chromeUpdate); err != nil {
 		t.Fatal(err)
 	}
-	h.a.refresh(h.engine.KeptSizes())
+	in, err := h.engine.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.a.refresh(in, h.engine.KeptSizes())
 	h.frame()
 	h.want("Google Chrome 156.0.8078.74", "Up to date")
 }

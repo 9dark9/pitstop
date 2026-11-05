@@ -394,6 +394,9 @@ func (a *App) overview(c *ui.Context) {
 			})
 			a.startButton(c)
 		})
+		if in.Unsettled {
+			ui.Text(c, locales.StatusUnsettled()).TextColor(c.Theme().Warning).Margin(4, 0, 0)
+		}
 		if in.Staged != "" && (a.chromeUpdate == nil || a.chromeUpdate.Version == in.Staged) {
 			ui.Text(c, locales.StatusStaged(in.Staged)).TextColor(c.Theme().Success).Margin(4, 0, 0)
 			return

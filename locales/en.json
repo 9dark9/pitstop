@@ -34,6 +34,7 @@
   "statusUpToDate": "Up to date",
   "statusAvailable": "{version} is available ({size})",
   "statusStaged": "{version} is ready and goes in when Chrome restarts",
+  "statusUnsettled": "Pitstop hasn't finished putting away the replaced version. It keeps trying.",
   "statusWaiting": "{version} will be applied after you close Chrome",
   "checkButton": "Check for updates",
   "updateButton": "Update to {version}",
