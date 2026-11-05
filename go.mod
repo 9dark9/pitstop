@@ -6,7 +6,7 @@ require (
 	github.com/404Setup/go-zucchini v1.0.0
 	github.com/Bush2021/chrome_update v0.5.0
 	github.com/bodgit/sevenzip v1.6.5
-	github.com/egoist/mygo v0.7.5-0.20261102061820-59e00c7bbfe0
+	github.com/egoist/mygo v0.7.5-0.20261105040656-977ea57e0baf
 	github.com/gofrs/flock v0.13.1
 	github.com/ulikunitz/xz v0.5.15
 	golang.org/x/sys v0.49.0
