@@ -105,11 +105,11 @@ jobs:
           git diff --exit-code
           cp "$RUNNER_TEMP/source-tree" build/source-tree
       - name: Package release files
-        # Self-update replaces pitstop.exe by name, so every architecture
-        # reaches users under that name: x64 as it is, the others zipped.
+        # Self-update replaces pitstop.exe by name, so each architecture's
+        # zip holds it under that name.
         run: |
           mkdir build/dist
-          cp build/windows-amd64/pitstop.exe build/dist/
+          zip -X -j build/dist/pitstop-x64.zip build/windows-amd64/pitstop.exe
           zip -X -j build/dist/pitstop-x86.zip build/windows-386/pitstop.exe
           zip -X -j build/dist/pitstop-arm64.zip build/windows-arm64/pitstop.exe
           find build/windows-* -type f ! -name pitstop.exe -exec cp -t build/dist {} +

@@ -30,7 +30,7 @@
 
 ## 下载与使用
 
-1. 从 [Releases](https://github.com/Bush2021/pitstop/releases) 下载程序：x64 系统下载 `pitstop.exe`；32 位或 ARM 版 Windows 下载 `pitstop-x86.zip` 或 `pitstop-arm64.zip`，解压出 `pitstop.exe`。请勿改名，自更新按 `pitstop.exe` 这个文件名替换程序。
+1. 从 [Releases](https://github.com/Bush2021/pitstop/releases) 下载对应系统的压缩包：`pitstop-x64.zip`、`pitstop-x86.zip`（32 位）或 `pitstop-arm64.zip`，解压出 `pitstop.exe`。请勿改名，自更新按这个文件名替换程序。
 2. 将程序放入 Chrome 所在的文件夹。已有便携版 Chrome 时，与 `App` 文件夹放在同一级；首次部署可使用空文件夹。
 3. 运行 Pitstop，选择 Chrome 渠道和架构后，点击 **部署**。
 

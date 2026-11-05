@@ -30,7 +30,7 @@ Background and in-app updates require Chrome++ Next 1.19.0 or later with `manage
 
 ## Download and use
 
-1. Download from [Releases](https://github.com/Bush2021/pitstop/releases): `pitstop.exe` for Windows x64, or `pitstop-x86.zip` / `pitstop-arm64.zip` for 32-bit or ARM Windows, and extract `pitstop.exe` from the zip. Keep the name `pitstop.exe`; self-update replaces the file by that name.
+1. Download the zip for your Windows from [Releases](https://github.com/Bush2021/pitstop/releases): `pitstop-x64.zip`, `pitstop-x86.zip` (32-bit) or `pitstop-arm64.zip`, and extract `pitstop.exe`. Keep that name; self-update replaces the file by it.
 2. Place it in a folder for Chrome. For an existing portable install, place it next to the `App` folder.
 3. Run Pitstop, select a Chrome channel and architecture, then select **Set up**.
 
