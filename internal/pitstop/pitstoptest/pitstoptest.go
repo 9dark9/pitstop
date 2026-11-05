@@ -24,10 +24,10 @@ import (
 	"time"
 
 	zucchini "github.com/404Setup/go-zucchini"
-	"github.com/ulikunitz/xz"
 
 	"github.com/Bush2021/chrome_update/pefile/pefiletest"
 	"github.com/Bush2021/chrome_update/unpack"
+	"github.com/Bush2021/chrome_update/unpack/unpacktest"
 	"github.com/Bush2021/pitstop/internal/install"
 )
 
@@ -156,15 +156,12 @@ type Servers struct {
 }
 
 func (s *Servers) serve(b []byte) (dl string, size int64) {
-	var buf bytes.Buffer
-	xw, _ := xz.NewWriter(&buf)
-	xw.Write(b)
-	xw.Close()
-	dl = Sum(buf.Bytes())
+	x := unpacktest.XZ(b)
+	dl = Sum(x)
 	s.mu.Lock()
-	s.files[dl] = buf.Bytes()
+	s.files[dl] = x
 	s.mu.Unlock()
-	return dl, int64(buf.Len())
+	return dl, int64(len(x))
 }
 
 func (s *Servers) xzPackage(version string) (pkg []byte, dl string, size int64) {

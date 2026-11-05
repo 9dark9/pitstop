@@ -24,7 +24,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"io"
 	"net/http"
 	"os"
@@ -34,11 +33,11 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/bodgit/sevenzip"
 	"github.com/gofrs/flock"
 
 	"github.com/Bush2021/chrome_update/fetch"
 	"github.com/Bush2021/chrome_update/omaha"
+	"github.com/Bush2021/chrome_update/sevenz"
 	"github.com/Bush2021/chrome_update/unpack"
 	"github.com/Bush2021/pitstop/internal/apply"
 	"github.com/Bush2021/pitstop/internal/chromeproc"
@@ -896,19 +895,34 @@ func (e *Engine) stagePlus(ctx context.Context, u *PlusUpdate, arch string) (str
 var chromePlusFiles = []string{"version.dll", "chrome++.ini"}
 
 func extractChromePlus(archive, arch, dir string) error {
-	r, err := sevenzip.OpenReader(archive)
+	f, err := os.Open(archive)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	r, err := sevenz.NewReader(f, st.Size())
 	if err != nil {
 		return fmt.Errorf("%s: %w", filepath.Base(archive), err)
 	}
-	defer r.Close()
 	found := 0
-	for _, f := range r.File {
+	for {
+		e, err := r.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("%s: %w", filepath.Base(archive), err)
+		}
 		for _, name := range chromePlusFiles {
-			if f.Name != arch+"/App/"+name {
+			if e.Name != arch+"/App/"+name {
 				continue
 			}
-			if err := extractFile(f, filepath.Join(dir, name)); err != nil {
-				return err
+			if err := extractFile(r, filepath.Join(dir, name)); err != nil {
+				return fmt.Errorf("%s: %w", e.Name, err)
 			}
 			found++
 		}
@@ -919,30 +933,17 @@ func extractChromePlus(archive, arch, dir string) error {
 	return nil
 }
 
-// extractFile writes one archive entry to dst and checks its CRC32:
-// sevenzip checks the archive's headers but not each file.
-func extractFile(f *sevenzip.File, dst string) error {
-	rc, err := f.Open()
-	if err != nil {
-		return fmt.Errorf("%s: %w", f.Name, err)
-	}
-	defer rc.Close()
+// extractFile writes the reader's current file to dst.
+func extractFile(r *sevenz.Reader, dst string) error {
 	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return err
 	}
-	h := crc32.NewIEEE()
-	n, err := io.Copy(io.MultiWriter(out, h), rc)
+	_, err = io.Copy(out, r)
 	if cerr := out.Close(); err == nil {
 		err = cerr
 	}
-	if err != nil {
-		return fmt.Errorf("%s: %w", f.Name, err)
-	}
-	if n != int64(f.UncompressedSize) || (f.CRC32 != 0 && h.Sum32() != f.CRC32) {
-		return fmt.Errorf("%s: damaged in the archive", f.Name)
-	}
-	return nil
+	return err
 }
 
 // UpdateChromePlus installs u in place of the install's Chrome++, which it
