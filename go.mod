@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/404Setup/go-zucchini v1.0.0
 	github.com/Bush2021/chrome_update v0.7.0
-	github.com/egoist/mygo v0.7.5-0.20261105040656-977ea57e0baf
+	github.com/egoist/mygo v0.7.5-0.20261106063318-acf2fdd3e4a7
 	github.com/gofrs/flock v0.13.1
 	golang.org/x/sys v0.49.0
 )
