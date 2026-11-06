@@ -29,6 +29,7 @@ Pitstop sets up portable Google Chrome for use with [Chrome++ Next](https://gith
 - Updates Chrome and Chrome++ Next manually or automatically in the background.
 - Can keep earlier versions and their data.
 - Supports differential Chrome updates.
+- Lets you choose which Google server Chrome downloads from first, and rotates through the servers when retrying.
 - Gets small xz packages for Chrome over Omaha protocol 4, decoding them as they download and resuming interrupted downloads.
 
 ### Configuration

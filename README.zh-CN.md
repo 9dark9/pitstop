@@ -29,6 +29,7 @@ Pitstop 用来部署配合 [Chrome++ Next](https://github.com/Bush2021/chrome_pl
 - 支持手动或后台自动更新 Chrome 和 Chrome++ Next。
 - 支持保留旧版本及其数据。
 - 支持启用 Chrome 差分更新。
+- 支持选择优先从哪个 Google 服务器下载 Chrome 和轮换重试。
 - Chrome 更新使用 Omaha 协议 4 获取小体积 xz 安装包，支持边下载边解压和断点续传。
 
 ### 配置

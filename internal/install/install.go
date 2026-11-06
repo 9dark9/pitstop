@@ -283,6 +283,9 @@ type State struct {
 	// DiffUpdates has Chrome updates keep their package, which Google's
 	// server can then patch into the next one.
 	DiffUpdates bool `json:"diffUpdates,omitempty"`
+	// DownloadHost is the server Chrome downloads try first; empty keeps
+	// the update server's order.
+	DownloadHost string `json:"downloadHost,omitempty"`
 	// Failure is the background mode's last failed update, until an update
 	// goes in or the user dismisses it.
 	Failure *Failure `json:"failure,omitempty"`
@@ -326,6 +329,10 @@ var Policies = []Policy{Automatic, Ask, Off}
 const DefaultCheckHours = 3
 
 var CheckHours = []int{1, DefaultCheckHours, 24}
+
+// DownloadHosts are the servers Google's update server links Chrome
+// downloads to, in its usual order.
+var DownloadHosts = []string{"edgedl.me.gvt1.com", "dl.google.com"}
 
 type Event struct {
 	Time time.Time `json:"time"`

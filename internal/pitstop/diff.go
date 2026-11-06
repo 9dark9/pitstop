@@ -73,7 +73,7 @@ func pickDiff(pipelines []omaha.Pipeline, cached []string, full omaha.Pipeline, 
 func (e *Engine) diffChrome(ctx context.Context, p omaha.Pipeline, crx string) error {
 	dl, pkg, step := p.Ops[0], p.Ops[len(p.Ops)-1], p.Ops[len(p.Ops)-2]
 	download := e.path(chromeCache, dl.Out+".zuc")
-	file := fetch.File{URLs: dl.URLs, Size: dl.Size, SHA256: dl.Out, Dest: download}
+	file := fetch.File{URLs: e.urls(dl.URLs), Size: dl.Size, SHA256: dl.Out, Dest: download}
 	patch := download
 	if len(p.Ops) == 4 {
 		file.Dest = e.path(chromeCache, dl.Out+".xz")

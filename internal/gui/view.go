@@ -1201,7 +1201,8 @@ func (a *App) ownSettings() []ownSetting {
 		list = append(list, ownSetting{options.Option{Key: "interval", Group: updates, Label: locales.Messages.UpdatesInterval}, a.intervalRow})
 	}
 	list = append(list, ownSetting{options.Option{Key: "keep", Group: updates, Label: locales.Messages.UpdatesKeep, Help: locales.Messages.UpdatesKeepHelp}, a.keepRow})
-	return append(list, ownSetting{options.Option{Key: "diff", Group: updates, Label: locales.Messages.UpdatesDiff, Help: locales.Messages.UpdatesDiffHelp}, a.diffRow})
+	list = append(list, ownSetting{options.Option{Key: "diff", Group: updates, Label: locales.Messages.UpdatesDiff, Help: locales.Messages.UpdatesDiffHelp}, a.diffRow})
+	return append(list, ownSetting{options.Option{Key: "host", Group: updates, Label: locales.Messages.UpdatesHost, Help: locales.Messages.UpdatesHostHelp}, a.hostRow})
 }
 
 func (a *App) ownSettingsPage(c *ui.Context) {
@@ -1269,6 +1270,20 @@ func (a *App) diffRow(c *ui.Context) {
 			on := a.in.State.DiffUpdates
 			if ui.Switch(c.Key("control"), &on).Label(label).Disabled(a.busy).Changed() {
 				a.setState(func(s *install.State) { s.DiffUpdates = on })
+			}
+		})
+	})
+}
+
+func (a *App) hostRow(c *ui.Context) {
+	hosts := append([]string{""}, install.DownloadHosts...)
+	labels := append([]string{locales.HostAutomatic()}, install.DownloadHosts...)
+	chosen := max(slices.Index(hosts, a.in.State.DownloadHost), 0)
+	label := locales.UpdatesHost()
+	settingRow(c, "host", func() {
+		rowHead(c, label, locales.UpdatesHostHelp(), func() {
+			if segmented(c, "host", &chosen, labels...).Label(label).Changed() {
+				a.setState(func(s *install.State) { s.DownloadHost = hosts[chosen] })
 			}
 		})
 	})

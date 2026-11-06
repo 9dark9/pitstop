@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -742,6 +743,32 @@ func (e *Engine) stageChrome(ctx context.Context, u *ChromeUpdate) (string, erro
 	return rel, nil
 }
 
+// urls puts the update server's URLs on the user's download host first,
+// read when the download starts so that a change applies to an update
+// found before it.
+func (e *Engine) urls(urls []string) []string {
+	s, err := install.LoadState(e.Root)
+	if err != nil || s.DownloadHost == "" {
+		return urls
+	}
+	return preferHost(urls, s.DownloadHost)
+}
+
+func preferHost(urls []string, host string) []string {
+	out := slices.Clone(urls)
+	slices.SortStableFunc(out, func(a, b string) int {
+		return cmp.Compare(otherHost(a, host), otherHost(b, host))
+	})
+	return out
+}
+
+func otherHost(u, host string) int {
+	if p, err := url.Parse(u); err == nil && strings.EqualFold(p.Hostname(), host) {
+		return 0
+	}
+	return 1
+}
+
 // fetchChrome downloads the package the pipeline describes into the cache,
 // decoding an xz stream as it arrives, and returns the CRX3's path. Every
 // step's output must match the SHA-256 the update server gave.
@@ -768,14 +795,14 @@ func (e *Engine) fetchChrome(ctx context.Context, p omaha.Pipeline) (string, err
 		if dl.Out != pkg.In {
 			return "", fmt.Errorf("pipeline %s downloads something other than its package", p.ID)
 		}
-		return crx, fetch.Get(ctx, e.HTTP, fetch.File{URLs: dl.URLs, Size: dl.Size, SHA256: dl.Out, Dest: crx}, e.report(Downloading))
+		return crx, fetch.Get(ctx, e.HTTP, fetch.File{URLs: e.urls(dl.URLs), Size: dl.Size, SHA256: dl.Out, Dest: crx}, e.report(Downloading))
 	case "xz":
 		xz := e.path(chromeCache, dl.Out+".xz")
 		// Only one phase can be on screen: decoding, which runs alongside the
 		// download, reports once the download is done.
 		var downloaded atomic.Bool
 		downloading, decoding := e.report(Downloading), e.report(Decoding)
-		file := fetch.File{URLs: dl.URLs, Size: dl.Size, SHA256: dl.Out, Dest: xz, Follow: func(r io.Reader) error {
+		file := fetch.File{URLs: e.urls(dl.URLs), Size: dl.Size, SHA256: dl.Out, Dest: xz, Follow: func(r io.Reader) error {
 			return unpack.DecodeXZ(ctx, r, crx, pkg.In, pkg.Size, func(done, total int64) {
 				if downloaded.Load() {
 					decoding(done, total)

@@ -976,6 +976,36 @@ func (msgs Messages) UpdatesDiffHelp() string {
 	return Catalog.Format(msgs.locale, "updatesDiffHelp", nil)
 }
 
+// UpdatesHost says "Preferred download server"
+// in the language the app shows.
+func UpdatesHost() string { return In(i18n.Locale()).UpdatesHost() }
+
+// UpdatesHost says "Preferred download server"
+// in the language of msgs.
+func (msgs Messages) UpdatesHost() string {
+	return Catalog.Format(msgs.locale, "updatesHost", nil)
+}
+
+// UpdatesHostHelp says "Chrome updates download from this server first and switch to the other one if it fails. Automatic keeps the order Goo…"
+// in the language the app shows.
+func UpdatesHostHelp() string { return In(i18n.Locale()).UpdatesHostHelp() }
+
+// UpdatesHostHelp says "Chrome updates download from this server first and switch to the other one if it fails. Automatic keeps the order Goo…"
+// in the language of msgs.
+func (msgs Messages) UpdatesHostHelp() string {
+	return Catalog.Format(msgs.locale, "updatesHostHelp", nil)
+}
+
+// HostAutomatic says "Automatic"
+// in the language the app shows.
+func HostAutomatic() string { return In(i18n.Locale()).HostAutomatic() }
+
+// HostAutomatic says "Automatic"
+// in the language of msgs.
+func (msgs Messages) HostAutomatic() string {
+	return Catalog.Format(msgs.locale, "hostAutomatic", nil)
+}
+
 // UpdatesPolicy says "Update mode"
 // in the language the app shows.
 func UpdatesPolicy() string { return In(i18n.Locale()).UpdatesPolicy() }
