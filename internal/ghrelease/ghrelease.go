@@ -4,96 +4,74 @@ package ghrelease
 import (
 	"cmp"
 	"context"
+	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const Repo = "Bush2021/chrome_plus"
 
+// Manifest is the asset of every release that describes its archive. It is
+// read from github.com, not GitHub's API: unauthenticated API calls share
+// 60 an hour per IP, which users behind a shared proxy or NAT run out of.
+const Manifest = "update.json"
+
 type Release struct {
-	Tag       string
-	Published time.Time
-	Notes     string
-	Assets    []Asset
+	Tag     string
+	Archive Asset
 }
 
 type Asset struct {
 	Name   string
 	Size   int64
-	Digest string // as GitHub gives it, such as "sha256:…"; empty for uploads before June 2025
+	SHA256 string
 	URL    string
-}
-
-func (a Asset) SHA256() (string, bool) {
-	hex, ok := strings.CutPrefix(a.Digest, "sha256:")
-	return hex, ok && len(hex) == 64
-}
-
-// Archive returns the release's archive of every architecture,
-// Chrome++_v<version>_x86_x64_arm64.7z.
-func (r *Release) Archive() (Asset, bool) {
-	want := "Chrome++_v" + r.Tag + "_x86_x64_arm64.7z"
-	for _, a := range r.Assets {
-		if a.Name == want {
-			return a, true
-		}
-	}
-	return Asset{}, false
 }
 
 type Client struct {
 	HTTP *http.Client
-	API  string
+	// Base is where the repository is, https://github.com unless a test
+	// replaces it.
+	Base string
 }
 
-type apiRelease struct {
-	TagName     string    `json:"tag_name"`
-	PublishedAt time.Time `json:"published_at"`
-	Body        string    `json:"body"`
-	Assets      []struct {
-		Name               string  `json:"name"`
-		Size               int64   `json:"size"`
-		Digest             *string `json:"digest"`
-		BrowserDownloadURL string  `json:"browser_download_url"`
-	} `json:"assets"`
+type manifest struct {
+	Version string `json:"version"`
+	Size    int64  `json:"size"`
+	SHA256  string `json:"sha256"`
 }
-
-func (a apiRelease) release() *Release {
-	r := &Release{Tag: a.TagName, Published: a.PublishedAt, Notes: a.Body}
-	for _, as := range a.Assets {
-		asset := Asset{Name: as.Name, Size: as.Size, URL: as.BrowserDownloadURL}
-		if as.Digest != nil {
-			asset.Digest = *as.Digest
-		}
-		r.Assets = append(r.Assets, asset)
-	}
-	return r
-}
-
-var ErrNoRelease = errors.New("no Chrome++ release found")
 
 func (c *Client) Latest(ctx context.Context) (*Release, error) {
-	var a apiRelease
-	if err := c.get(ctx, "/repos/"+Repo+"/releases/latest", &a); err != nil {
+	releases := cmp.Or(c.Base, "https://github.com") + "/" + Repo + "/releases"
+	var m manifest
+	if err := c.get(ctx, releases+"/latest/download/"+Manifest, &m); err != nil {
 		return nil, err
 	}
-	return a.release(), nil
+	if m.Version == "" || strings.ContainsAny(m.Version, "/\\") || m.Size <= 0 {
+		return nil, fmt.Errorf("Chrome++ %s is malformed: %+v", Manifest, m)
+	}
+	if b, err := hex.DecodeString(m.SHA256); err != nil || len(b) != 32 {
+		return nil, fmt.Errorf("Chrome++ %s gives no SHA-256 for %s, so it cannot be checked", m.Version, Manifest)
+	}
+	name := "Chrome++_v" + m.Version + "_x86_x64_arm64.7z"
+	return &Release{Tag: m.Version, Archive: Asset{
+		Name:   name,
+		Size:   m.Size,
+		SHA256: strings.ToLower(m.SHA256),
+		URL:    releases + "/download/" + url.PathEscape(m.Version) + "/" + url.PathEscape(name),
+	}}, nil
 }
 
-func (c *Client) get(ctx context.Context, path string, v any) error {
-	api := cmp.Or(c.API, "https://api.github.com")
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, api+path, nil)
+func (c *Client) get(ctx context.Context, u string, v any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	client := c.HTTP
 	if client == nil {
 		client = http.DefaultClient
@@ -103,15 +81,12 @@ func (c *Client) get(ctx context.Context, path string, v any) error {
 		return err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return err
 	}
-	switch {
-	case resp.StatusCode == http.StatusNotFound:
-		return ErrNoRelease
-	case resp.StatusCode != http.StatusOK:
-		return fmt.Errorf("GitHub answered %s: %s", resp.Status, strings.TrimSpace(string(body[:min(len(body), 200)])))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("GitHub answered %s for %s", resp.Status, u)
 	}
 	return json.Unmarshal(body, v)
 }

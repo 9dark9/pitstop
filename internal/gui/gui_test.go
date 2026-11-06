@@ -48,7 +48,7 @@ func newHarness(t *testing.T, versions ...string) *harness {
 		t.Fatal(err)
 	}
 	engine.Omaha.Endpoint = h.s.Endpoint()
-	engine.GitHub.API = h.s.URL
+	engine.GitHub.Base = h.s.URL
 	engine.Hooks.Unpack = pitstoptest.Unpack(t)
 	// The fake builds are unsigned, which Windows would refuse.
 	engine.Hooks.Verify = func(string, string) error { return nil }

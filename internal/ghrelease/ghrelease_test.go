@@ -4,53 +4,64 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
-// The fixtures follow GitHub's release schema (@octokit/openapi-types
-// 29.0.1): digest is "sha256:<hex>", or null for assets uploaded before
-// GitHub recorded digests.
-const latest = `{
- "tag_name": "1.18.3", "draft": false, "prerelease": false,
- "published_at": "2026-10-26T19:40:00Z", "body": "notes",
- "assets": [
-  {"name": "Chrome++_v1.18.3_x86_x64_arm64.7z", "size": 181011,
-   "digest": "sha256:bfcca14dd07fc9823a639f4a46b7c53ce11fc86ef1da19eab818c800cf49a159",
-   "browser_download_url": "https://github.com/Bush2021/chrome_plus/releases/download/1.18.3/Chrome++_v1.18.3_x86_x64_arm64.7z"},
-  {"name": "setdll.7z", "size": 500000, "digest": null,
-   "browser_download_url": "https://github.com/Bush2021/chrome_plus/releases/download/1.18.3/setdll.7z"}
- ]}`
+const sum = "bfcca14dd07fc9823a639f4a46b7c53ce11fc86ef1da19eab818c800cf49a159"
 
-func server(t *testing.T) *httptest.Server {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.RequestURI() != "/repos/Bush2021/chrome_plus/releases/latest" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Write([]byte(latest))
-	}))
+func server(t *testing.T, manifest string) *httptest.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /Bush2021/chrome_plus/releases/latest/download/update.json", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/Bush2021/chrome_plus/releases/download/1.18.3/update.json", http.StatusFound)
+	})
+	mux.HandleFunc("GET /Bush2021/chrome_plus/releases/download/1.18.3/update.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(manifest))
+	})
+	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
 }
 
 func TestLatest(t *testing.T) {
-	c := &Client{API: server(t).URL}
-	r, err := c.Latest(context.Background())
+	srv := server(t, `{"version": "1.18.3", "size": 181011, "sha256": "`+strings.ToUpper(sum)+`"}`)
+	r, err := (&Client{Base: srv.URL}).Latest(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Tag != "1.18.3" || r.Notes != "notes" {
+	want := Asset{
+		Name:   "Chrome++_v1.18.3_x86_x64_arm64.7z",
+		Size:   181011,
+		SHA256: sum,
+		URL:    srv.URL + "/Bush2021/chrome_plus/releases/download/1.18.3/Chrome++_v1.18.3_x86_x64_arm64.7z",
+	}
+	if r.Tag != "1.18.3" || r.Archive != want {
 		t.Errorf("%+v", r)
 	}
-	a, ok := r.Archive()
-	if !ok {
-		t.Fatal("no archive")
+}
+
+func TestLatestRefuses(t *testing.T) {
+	for name, manifest := range map[string]string{
+		"no hash":    `{"version": "1.18.3", "size": 181011}`,
+		"short hash": `{"version": "1.18.3", "size": 181011, "sha256": "bfcca14d"}`,
+		"no size":    `{"version": "1.18.3", "sha256": "` + sum + `"}`,
+		"a path":     `{"version": "../1.18.3", "size": 181011, "sha256": "` + sum + `"}`,
+	} {
+		srv := server(t, manifest)
+		if r, err := (&Client{Base: srv.URL}).Latest(context.Background()); err == nil {
+			t.Errorf("%s: %+v", name, r)
+		}
 	}
-	if sum, ok := a.SHA256(); !ok || sum != "bfcca14dd07fc9823a639f4a46b7c53ce11fc86ef1da19eab818c800cf49a159" {
-		t.Errorf("digest %q", a.Digest)
-	}
-	if _, ok := r.Assets[1].SHA256(); ok {
-		t.Error("a null digest gave a hash")
+}
+
+// A release without a manifest, such as one published before Pitstop read
+// manifests, says so instead of offering nothing.
+func TestLatestWithoutAManifest(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(srv.Close)
+	_, err := (&Client{Base: srv.URL}).Latest(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "update.json") {
+		t.Errorf("Latest = %v", err)
 	}
 }
 

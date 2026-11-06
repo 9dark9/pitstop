@@ -29,7 +29,7 @@ func newEngine(t *testing.T, s *pitstoptest.Servers) *Engine {
 		t.Fatal(err)
 	}
 	engine.Omaha.Endpoint = s.Endpoint()
-	engine.GitHub.API = s.URL
+	engine.GitHub.Base = s.URL
 	engine.Hooks.Unpack = pitstoptest.Unpack(t)
 	// The fake builds are unsigned, which Windows would refuse.
 	engine.Hooks.Verify = func(string, string) error { return nil }
@@ -100,7 +100,7 @@ func TestSetup(t *testing.T) {
 
 func TestSetupRefusesAReleaseWithoutADigest(t *testing.T) {
 	s := pitstoptest.NewServers(t, "156.0.8078.74")
-	s.Digest = ""
+	s.SHA256 = ""
 	engine := newEngine(t, s)
 	err := engine.Setup(context.Background(), SetupOptions{Channel: omaha.Stable, Arch: "x64"})
 	if err == nil || !strings.Contains(err.Error(), "no SHA-256") {

@@ -874,7 +874,6 @@ func (e *Engine) swapChrome(ctx context.Context, in *install.Install, from, vers
 
 type PlusUpdate struct {
 	Release *ghrelease.Release
-	Archive ghrelease.Asset
 }
 
 func (e *Engine) CheckChromePlus(ctx context.Context, in *install.Install) (*PlusUpdate, error) {
@@ -893,14 +892,7 @@ func (e *Engine) latestPlus(ctx context.Context) (*PlusUpdate, error) {
 	if err != nil {
 		return nil, err
 	}
-	a, ok := r.Archive()
-	if !ok {
-		return nil, fmt.Errorf("Chrome++ Next %s has no Chrome++_v%s_x86_x64_arm64.7z", r.Tag, r.Tag)
-	}
-	if _, ok := a.SHA256(); !ok {
-		return nil, fmt.Errorf("GitHub gives no SHA-256 for %s, so it cannot be checked", a.Name)
-	}
-	return &PlusUpdate{Release: r, Archive: a}, nil
+	return &PlusUpdate{Release: r}, nil
 }
 
 func (e *Engine) stagePlus(ctx context.Context, u *PlusUpdate, arch string) (string, error) {
@@ -912,15 +904,14 @@ func (e *Engine) stagePlus(ctx context.Context, u *PlusUpdate, arch string) (str
 	if exists(e.path(rel, "version.dll")) {
 		return rel, nil
 	}
-	if err := e.prune(plusCache, func(n string) bool { return strings.HasPrefix(n, u.Archive.Name) }); err != nil {
+	if err := e.prune(plusCache, func(n string) bool { return strings.HasPrefix(n, u.Release.Archive.Name) }); err != nil {
 		return "", err
 	}
 	if err := os.MkdirAll(e.path(plusCache), 0o755); err != nil {
 		return "", err
 	}
-	archive := e.path(plusCache, u.Archive.Name)
-	sum, _ := u.Archive.SHA256()
-	if err := fetch.Get(ctx, e.HTTP, fetch.File{URLs: []string{u.Archive.URL}, Size: u.Archive.Size, SHA256: sum, Dest: archive}, e.report(Downloading)); err != nil {
+	archive := e.path(plusCache, u.Release.Archive.Name)
+	if err := fetch.Get(ctx, e.HTTP, fetch.File{URLs: []string{u.Release.Archive.URL}, Size: u.Release.Archive.Size, SHA256: u.Release.Archive.SHA256, Dest: archive}, e.report(Downloading)); err != nil {
 		return "", err
 	}
 	partial := e.path(rel) + ".partial"

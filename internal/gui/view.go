@@ -433,7 +433,7 @@ func (a *App) overview(c *ui.Context) {
 		}
 		a.status(c, a.plusUpdate != nil, func() {
 			u := a.plusUpdate
-			ui.Text(c, locales.StatusAvailable(u.Release.Tag, mb(u.Archive.Size))).Grow(1)
+			ui.Text(c, locales.StatusAvailable(u.Release.Tag, mb(u.Release.Archive.Size))).Grow(1)
 			label := locales.UpdateButton(u.Release.Tag)
 			if in.ChromePlus == "" {
 				label = locales.InstallPlusButton(u.Release.Tag)

@@ -1,5 +1,5 @@
 // Package pitstoptest fakes what Pitstop talks to, for tests: Google's
-// update server and download hosts, GitHub's API with Chrome++ 1.18.3, and
+// update server and download hosts, GitHub's releases with Chrome++ 1.18.3, and
 // Chrome builds small enough to make in a test.
 package pitstoptest
 
@@ -134,14 +134,14 @@ func Unpack(t testing.TB) func(ctx context.Context, crx3, dir string, progress u
 }
 
 // Servers fakes Google's update server, its download hosts and GitHub's
-// API, over TLS: the update client keeps only https download URLs.
+// releases, over TLS: the update client keeps only https download URLs.
 type Servers struct {
 	*httptest.Server
 	// Versions are the Chrome builds on offer, oldest first.
 	Versions []string
-	// Digest is the Chrome++ archive's digest in GitHub's API; "" for
-	// none.
-	Digest string
+	// SHA256 is the Chrome++ archive's hash in its release's manifest; ""
+	// for none.
+	SHA256 string
 	// BadDiff has the differential updates it offers fail to apply.
 	BadDiff bool
 	// Gets counts the package downloads, and Diffs the differential ones
@@ -215,10 +215,10 @@ func NewServers(t testing.TB, versions ...string) *Servers {
 		t.Fatal(err)
 	}
 	s.files[PlusArchive] = archive
-	s.Digest = "sha256:" + Sum(archive)
+	s.SHA256 = Sum(archive)
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /update", s.update)
-	mux.HandleFunc("GET /dl/{name}", func(w http.ResponseWriter, r *http.Request) {
+	download := func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		b, ok := s.files[r.PathValue("name")]
 		patch := s.patches[r.PathValue("name")]
@@ -232,19 +232,11 @@ func NewServers(t testing.TB, versions ...string) *Servers {
 			s.Diffs.Add(1)
 		}
 		http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(b))
-	})
-	mux.HandleFunc("GET /repos/Bush2021/chrome_plus/releases/latest", func(w http.ResponseWriter, r *http.Request) {
-		var digest *string
-		if s.Digest != "" {
-			digest = &s.Digest
-		}
-		json.NewEncoder(w).Encode(map[string]any{
-			"tag_name": "1.18.3", "published_at": "2026-10-26T20:00:00Z",
-			"assets": []map[string]any{{
-				"name": PlusArchive, "size": len(archive), "digest": digest,
-				"browser_download_url": s.URL + "/dl/" + PlusArchive,
-			}},
-		})
+	}
+	mux.HandleFunc("GET /dl/{name}", download)
+	mux.HandleFunc("GET /Bush2021/chrome_plus/releases/download/1.18.3/{name}", download)
+	mux.HandleFunc("GET /Bush2021/chrome_plus/releases/latest/download/update.json", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"version": "1.18.3", "size": len(archive), "sha256": s.SHA256})
 	})
 	s.Server = httptest.NewTLSServer(mux)
 	t.Cleanup(s.Close)

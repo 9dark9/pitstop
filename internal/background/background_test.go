@@ -59,7 +59,7 @@ func newWorld(t *testing.T, version string, p install.Policy, offered ...string)
 		t.Fatal(err)
 	}
 	engine.Omaha.Endpoint = s.Endpoint()
-	engine.GitHub.API = s.URL
+	engine.GitHub.Base = s.URL
 	engine.Hooks.Unpack = pitstoptest.Unpack(t)
 	engine.Hooks.Verify = func(string, string) error { return nil }
 	if err := engine.Setup(context.Background(), pitstop.SetupOptions{Channel: omaha.Stable, Arch: "x64", Target: version}); err != nil {
@@ -289,7 +289,7 @@ func TestPostpone(t *testing.T) {
 
 func TestFailedCheckRetriesInAnHour(t *testing.T) {
 	w := newWorld(t, "156.0.8078.48", install.Ask, "156.0.8078.48")
-	w.engine.GitHub.API = w.s.URL + "/nowhere"
+	w.engine.GitHub.Base = w.s.URL + "/nowhere"
 	w.run(t, nil)
 	if got := fmt.Sprint(w.deadlines); got != "[1h0m0s]" {
 		t.Errorf("waited %s", got)
@@ -357,7 +357,7 @@ func TestFailedInstallAfterExitIsKept(t *testing.T) {
 	w.olderPlus(t)
 	w.ui.approve = true
 	w.r.Wait = func(ctx context.Context, dir string) error {
-		w.engine.GitHub.API = "http://127.0.0.1:1"
+		w.engine.GitHub.Base = "http://127.0.0.1:1"
 		return w.wait(ctx, dir)
 	}
 	w.run(t, nil)
