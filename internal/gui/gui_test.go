@@ -849,6 +849,17 @@ func TestChromeThatStaysLeavesTheMoveUndone(t *testing.T) {
 	}
 }
 
+func TestElevatedChromeAsksTheUserToExitIt(t *testing.T) {
+	h, _ := moveSetUp(t)
+	h.engine.Hooks.Close = func(string) error { return chromeproc.ErrElevated }
+	h.running = []chromeproc.Process{{PID: 1}}
+	h.a.running = true
+	h.click("Save")
+	h.click("Move")
+	h.settle()
+	h.want(locales.RunningTitle(), locales.RunningElevatedBody())
+}
+
 func TestNotMovingTheDataStillSaves(t *testing.T) {
 	h, to := moveSetUp(t)
 	h.click("Save")

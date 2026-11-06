@@ -526,7 +526,11 @@ func (a *App) operation(c *ui.Context) {
 	case errors.Is(a.opErr, pitstop.ErrChromeRunning):
 		card(c, func() {
 			ui.Text(c, locales.RunningTitle()).Bold()
-			ui.Text(c, locales.RunningBody())
+			if r, ok := errors.AsType[*pitstop.RunningError](a.opErr); ok && r.Elevated {
+				ui.Text(c, locales.RunningElevatedBody())
+			} else {
+				ui.Text(c, locales.RunningBody())
+			}
 			ui.Row(c).Gap(8).Children(func() {
 				if ui.PrimaryButton(c, locales.TryAgainButton()).Clicked() && a.retry != nil {
 					a.retry()

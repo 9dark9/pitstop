@@ -72,6 +72,26 @@ func TestChromeThatStaysIsNotStartedAgain(t *testing.T) {
 	}
 }
 
+// Chrome running as administrator ignores Close, so the user is told at
+// once instead of after closeWait.
+func TestElevatedChromeIsLeftToTheUser(t *testing.T) {
+	engine, running := chromeEngine(t)
+	*running = true
+	engine.Hooks.Close = func(string) error { return chromeproc.ErrElevated }
+	engine.Hooks.Wait = func(context.Context, string) error {
+		t.Error("waited for a Chrome that won't close")
+		return nil
+	}
+	engine.Hooks.Start = func(string) error {
+		t.Error("started a second Chrome")
+		return nil
+	}
+	err := engine.RestartChrome(context.Background())
+	if r, ok := errors.AsType[*RunningError](err); !ok || !r.Elevated {
+		t.Errorf("err = %v", err)
+	}
+}
+
 func TestClosingChromeCanBeCanceled(t *testing.T) {
 	engine, running := chromeEngine(t)
 	*running = true

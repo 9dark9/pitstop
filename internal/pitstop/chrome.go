@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/Bush2021/pitstop/internal/chromeproc"
 )
 
 // closeWait is how long Chrome gets to quit. Beyond it, a page is likely
@@ -18,7 +20,14 @@ func (e *Engine) StartChrome() error { return e.Hooks.Start(e.path(app, "chrome.
 // *RunningError.
 func (e *Engine) CloseChrome(ctx context.Context) error {
 	e.report(Closing)(0, 0)
-	if err := e.Hooks.Close(e.path(app)); err != nil {
+	if err := e.Hooks.Close(e.path(app)); errors.Is(err, chromeproc.ErrElevated) {
+		// Waiting would take the whole closeWait for nothing.
+		err := e.closed()
+		if r, ok := errors.AsType[*RunningError](err); ok {
+			r.Elevated = true
+		}
+		return err
+	} else if err != nil {
 		return err
 	}
 	wait, cancel := context.WithTimeout(ctx, closeWait)

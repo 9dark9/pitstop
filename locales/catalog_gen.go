@@ -512,6 +512,16 @@ func (msgs Messages) RunningBody() string {
 	return Catalog.Format(msgs.locale, "runningBody", nil)
 }
 
+// RunningElevatedBody says "Chrome is running as administrator, so Pitstop can't close it. Exit Chrome yourself, then select Try again."
+// in the language the app shows.
+func RunningElevatedBody() string { return In(i18n.Locale()).RunningElevatedBody() }
+
+// RunningElevatedBody says "Chrome is running as administrator, so Pitstop can't close it. Exit Chrome yourself, then select Try again."
+// in the language of msgs.
+func (msgs Messages) RunningElevatedBody() string {
+	return Catalog.Format(msgs.locale, "runningElevatedBody", nil)
+}
+
 // TryAgainButton says "Try again"
 // in the language the app shows.
 func TryAgainButton() string { return In(i18n.Locale()).TryAgainButton() }

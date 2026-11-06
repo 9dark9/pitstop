@@ -54,6 +54,7 @@
 
   "runningTitle": "Close Chrome to finish",
   "runningBody": "Close every Chrome window using this portable folder, then select Try again.",
+  "runningElevatedBody": "Chrome is running as administrator, so Pitstop can't close it. Exit Chrome yourself, then select Try again.",
   "tryAgainButton": "Try again",
   "errorTitle": "That didn't work",
   "busyBody": "Another copy of Pitstop is changing this portable folder. Try again once it's done.",

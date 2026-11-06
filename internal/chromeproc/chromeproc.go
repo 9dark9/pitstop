@@ -4,9 +4,14 @@
 package chromeproc
 
 import (
+	"errors"
 	"os/exec"
 	"path/filepath"
 )
+
+// ErrElevated is Close's answer when Chrome runs as administrator: Windows
+// drops what Pitstop sends to the windows of a process above its own.
+var ErrElevated = errors.New("Chrome runs as administrator, so Pitstop cannot close it")
 
 // Start runs exe on its own: it outlives Pitstop.
 func Start(exe string) error {

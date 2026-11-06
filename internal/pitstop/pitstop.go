@@ -141,9 +141,17 @@ var (
 	ErrChromeRunning = errors.New("Chrome is running from this install")
 )
 
-type RunningError struct{ Processes []chromeproc.Process }
+type RunningError struct {
+	Processes []chromeproc.Process
+	// Elevated is set when Chrome runs as administrator and only the user
+	// can close it.
+	Elevated bool
+}
 
 func (e *RunningError) Error() string {
+	if e.Elevated {
+		return "Chrome runs as administrator, so Pitstop cannot close it: exit Chrome, then try again"
+	}
 	return fmt.Sprintf("close Chrome first: %d programs are running from the install", len(e.Processes))
 }
 
@@ -248,7 +256,7 @@ func (e *Engine) closed() error {
 		return err
 	}
 	if len(ps) > 0 {
-		return &RunningError{ps}
+		return &RunningError{Processes: ps}
 	}
 	return nil
 }

@@ -66,14 +66,23 @@ func Close(dir string) error {
 	for _, p := range ps {
 		pids[p.PID] = true
 	}
+	denied := false
 	visit := windows.NewCallback(func(hwnd windows.HWND, _ uintptr) uintptr {
 		var pid uint32
 		if _, err := windows.GetWindowThreadProcessId(hwnd, &pid); err == nil && pids[pid] && isBrowserWindow(hwnd) {
-			postMessage.Call(uintptr(hwnd), wmSysCommand, idcExit, 0)
+			if ok, _, err := postMessage.Call(uintptr(hwnd), wmSysCommand, idcExit, 0); ok == 0 && errors.Is(err, windows.ERROR_ACCESS_DENIED) {
+				denied = true
+			}
 		}
 		return 1
 	})
-	return windows.EnumWindows(visit, nil)
+	if err := windows.EnumWindows(visit, nil); err != nil {
+		return err
+	}
+	if denied {
+		return ErrElevated
+	}
+	return nil
 }
 
 func isBrowserWindow(hwnd windows.HWND) bool {

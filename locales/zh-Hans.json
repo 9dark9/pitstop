@@ -54,6 +54,7 @@
 
   "runningTitle": "关闭 Chrome 后才能继续",
   "runningBody": "关闭这个便携版的所有 Chrome 窗口，然后点“重试”。",
+  "runningElevatedBody": "Chrome 正以管理员身份运行，Pitstop 无法关闭它。请手动退出 Chrome，然后点“重试”。",
   "tryAgainButton": "重试",
   "errorTitle": "操作失败",
   "busyBody": "另一个 Pitstop 正在修改这个便携版，请等它结束后再试。",
