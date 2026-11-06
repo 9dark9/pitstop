@@ -226,6 +226,67 @@ func TestChecksAtTheChosenInterval(t *testing.T) {
 	}
 }
 
+func TestChecksSayTheyRunInTheBackground(t *testing.T) {
+	w := newWorld(t, "156.0.8078.48", install.Ask, "156.0.8078.48")
+	w.run(t, nil)
+	if w.s.Interactivity != "bg" {
+		t.Errorf("X-Goog-Update-Interactivity %q", w.s.Interactivity)
+	}
+}
+
+func TestRetryAfterHoldsOffChecks(t *testing.T) {
+	w := newWorld(t, "156.0.8078.48", install.Ask, "156.0.8078.48")
+	w.s.RetryAfter = "36000"
+	start := w.now
+	w.run(t, context.DeadlineExceeded, nil)
+	// 10 hours, then the 7 left after the 3 the first wait took.
+	if got := fmt.Sprint(w.deadlines); got != "[10h0m0s 7h0m0s]" {
+		t.Errorf("waited %s", got)
+	}
+	in := w.open(t)
+	if !in.State.Quiet.Equal(start.Add(10*time.Hour)) || !in.State.Checked.Equal(start) {
+		t.Errorf("quiet until %s, checked at %s", in.State.Quiet, in.State.Checked)
+	}
+}
+
+// A clock set back leaves a wait longer than the protocol allows; it
+// doesn't stop the checks.
+func TestOverlongQuietIsIgnored(t *testing.T) {
+	w := newWorld(t, "156.0.8078.48", install.Ask, "156.0.8078.48")
+	w.engine.UpdateState(func(s *install.State) { s.Quiet = w.now.Add(48 * time.Hour) })
+	w.run(t, nil)
+	if in := w.open(t); !in.State.Checked.Equal(w.now) {
+		t.Errorf("checked at %s", in.State.Checked)
+	}
+}
+
+func TestPostponedCheck(t *testing.T) {
+	w := newWorld(t, "156.0.8078.48", install.Ask, "156.0.8078.48")
+	w.r.Postpone = func(period time.Duration) time.Duration { return period / 3 }
+	w.run(t, nil)
+	if got := fmt.Sprint(w.deadlines); got != "[4h0m0s]" {
+		t.Errorf("waited %s", got)
+	}
+}
+
+func TestPostpone(t *testing.T) {
+	const period = 3 * time.Hour
+	var later int
+	for range 2000 {
+		d := Postpone(period)
+		if d < 0 || d >= period/5 {
+			t.Fatalf("postponed by %s", d)
+		}
+		if d > 0 {
+			later++
+		}
+	}
+	// One in five, give or take.
+	if later < 300 || later > 500 {
+		t.Errorf("%d of 2000 postponed", later)
+	}
+}
+
 func TestFailedCheckRetriesInAnHour(t *testing.T) {
 	w := newWorld(t, "156.0.8078.48", install.Ask, "156.0.8078.48")
 	w.engine.GitHub.API = w.s.URL + "/nowhere"

@@ -21,7 +21,7 @@ func discardReplaced(t *testing.T, engine *Engine) {
 
 func updateTo(t *testing.T, engine *Engine, target string) {
 	t.Helper()
-	u, err := engine.checkChrome(context.Background(), omaha.Request{Channel: omaha.Stable, Arch: "x64", Target: target})
+	u, _, err := engine.checkChrome(context.Background(), omaha.Request{Channel: omaha.Stable, Arch: "x64", Target: target})
 	if err != nil || u == nil {
 		t.Fatalf("checkChrome = %+v, %v", u, err)
 	}

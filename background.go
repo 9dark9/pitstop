@@ -61,8 +61,9 @@ func runBackground(engine *pitstop.Engine) {
 			Conditions: func() pitstop.Conditions {
 				return pitstop.Conditions{Now: time.Now(), Metered: mygo.Network.Status().Metered}
 			},
-			Wait:   chromeproc.Wait,
-			Linger: time.Minute,
+			Wait:     chromeproc.Wait,
+			Linger:   time.Minute,
+			Postpone: background.Postpone,
 		}
 		go func() {
 			if err := n.r.Run(context.Background()); err != nil {

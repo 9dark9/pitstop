@@ -149,10 +149,14 @@ type Servers struct {
 	Gets  atomic.Int32
 	Diffs atomic.Int32
 	// Cached is what the last update check reported as cached.
-	Cached  []string
-	mu      sync.Mutex
-	files   map[string][]byte
-	patches map[string]bool
+	Cached []string
+	// RetryAfter is the X-Retry-After update checks get; "" for none.
+	RetryAfter string
+	// Interactivity is the last update check's X-Goog-Update-Interactivity.
+	Interactivity string
+	mu            sync.Mutex
+	files         map[string][]byte
+	patches       map[string]bool
 }
 
 func (s *Servers) serve(b []byte) (dl string, size int64) {
@@ -253,6 +257,12 @@ func (s *Servers) Endpoint() string { return s.URL + "/update" }
 // newest one matching the target prefix, as an xz pipeline, after a patch
 // pipeline if it can make one.
 func (s *Servers) update(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	s.Interactivity = r.Header.Get("X-Goog-Update-Interactivity")
+	if s.RetryAfter != "" {
+		w.Header().Set("X-Retry-After", s.RetryAfter)
+	}
+	s.mu.Unlock()
 	var req struct {
 		Request struct {
 			AcceptFormat string `json:"acceptformat"`

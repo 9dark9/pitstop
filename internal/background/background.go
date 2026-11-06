@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -17,6 +18,20 @@ import (
 
 // retry is how soon a check that got no answer runs again.
 const retry = time.Hour
+
+// maxQuiet is the longest wait for the update server the protocol allows;
+// a longer one comes from a clock set back.
+const maxQuiet = 24 * time.Hour
+
+// Postpone puts a check off by up to a fifth of the period, one time in
+// five, as the update protocol advises: clients that came to check together,
+// after an outage or a cloned image, drift apart.
+func Postpone(period time.Duration) time.Duration {
+	if rand.IntN(5) != 0 {
+		return 0
+	}
+	return rand.N(period / 5)
+}
 
 // Offer is an update the background mode asks about.
 type Offer struct {
@@ -45,6 +60,9 @@ type Runner struct {
 	// Linger is how long it stays after Chrome exits once it told the
 	// user something, as its notification goes when it quits.
 	Linger time.Duration
+	// Postpone returns how much later than the period the next check runs;
+	// nil for not at all.
+	Postpone func(period time.Duration) time.Duration
 
 	// asked lists the versions asked about while this Chrome runs.
 	asked map[string]bool
@@ -61,12 +79,23 @@ func (r *Runner) Run(ctx context.Context) error {
 			return nil
 		}
 		now := r.Conditions().Now
-		next := in.State.Checked.Add(in.State.CheckEvery())
-		if !now.Before(next) || in.State.Checked.After(now) {
+		every := in.State.CheckEvery()
+		next := in.State.Checked.Add(every)
+		due := !now.Before(next) || in.State.Checked.After(now)
+		// The wait also holds off Chrome++'s check, which goes with Chrome's.
+		if q := in.State.Quiet; now.Before(q) && q.Sub(now) <= maxQuiet {
+			due, next = false, later(next, q)
+		}
+		if due {
+			answered, quiet := r.check(ctx, in)
 			next = now.Add(retry)
-			if r.check(ctx, in) {
-				next = now.Add(in.State.CheckEvery())
+			if answered {
+				next = now.Add(every)
+				if r.Postpone != nil {
+					next = next.Add(r.Postpone(every))
+				}
 			}
+			next = later(next, quiet)
 		}
 		wctx, cancel := context.WithTimeout(ctx, next.Sub(r.Conditions().Now))
 		err = r.Wait(wctx, in.App())
@@ -90,16 +119,32 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 }
 
+func later(a, b time.Time) time.Time {
+	if b.After(a) {
+		return b
+	}
+	return a
+}
+
 // check looks for updates, applies the policy and reports whether both
-// sources answered. It asks one question at a time.
-func (r *Runner) check(ctx context.Context, in *install.Install) bool {
+// sources answered, and until when the update server wants no check. It
+// asks one question at a time.
+func (r *Runner) check(ctx context.Context, in *install.Install) (bool, time.Time) {
 	c := r.Conditions()
 	if in.State.Policy == install.Automatic && !c.Metered {
 		if err := r.UpdateSelf(ctx); err != nil {
 			log.Printf("update Pitstop: %v", err)
 		}
 	}
-	u, chromeErr := r.Engine.CheckChrome(ctx, in)
+	u, wait, chromeErr := r.Engine.CheckChromeInBackground(ctx, in)
+	var quiet time.Time
+	if wait > 0 {
+		quiet = c.Now.Add(wait)
+		log.Printf("check: the update server asks for no check for %s", wait)
+		if err := r.setState(ctx, func(s *install.State) { s.Quiet = quiet }); err != nil {
+			log.Printf("recording the wait: %v", err)
+		}
+	}
 	p, plusErr := r.Engine.CheckChromePlus(ctx, in)
 	if err := errors.Join(chromeErr, plusErr); err != nil {
 		log.Printf("check: %v", err)
@@ -133,7 +178,7 @@ func (r *Runner) check(ctx context.Context, in *install.Install) bool {
 			}
 		}
 	}
-	return chromeErr == nil && plusErr == nil
+	return chromeErr == nil && plusErr == nil, quiet
 }
 
 func (r *Runner) ask(o Offer) bool {

@@ -1,7 +1,7 @@
 github.com/404Setup/go-zucchini v1.0.0 h1:X0upuWZeyS+NxzcsZbE9Zhhd0ahfv1UBx7cYonKh7B8=
 github.com/404Setup/go-zucchini v1.0.0/go.mod h1:cCQjYyrRhucRSexgq1NfevwxfeFiSuyZRDTO23u3npw=
-github.com/Bush2021/chrome_update v0.6.0 h1:/FD79c/U6AoCM/zbqcQ7I00pEjXu3HQYLPWznLjqZIQ=
-github.com/Bush2021/chrome_update v0.6.0/go.mod h1:YNgX5GRZaW4WfEOou2rANLVk6W3LU6OnwRbbG8vX670=
+github.com/Bush2021/chrome_update v0.7.0 h1:/bgs66JeYOVr+lL9JJflq3+PRMtvLr1feqSau80Qh7A=
+github.com/Bush2021/chrome_update v0.7.0/go.mod h1:YNgX5GRZaW4WfEOou2rANLVk6W3LU6OnwRbbG8vX670=
 github.com/ebitengine/purego v0.11.1 h1:2zpWRSQNVKN4eKsKO9eM1ILDgWfYMY9GwqRmK6XeQ/0=
 github.com/ebitengine/purego v0.11.1/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
 github.com/egoist/mygo v0.7.5-0.20261105040656-977ea57e0baf h1:6sD4+5BmgaV81Jczuvm6M1dCK2/ogfhbXfvrEw27z28=

@@ -32,6 +32,7 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/gofrs/flock"
 
@@ -271,7 +272,18 @@ func (u *ChromeUpdate) DownloadSize() int64 {
 var accept = []string{omaha.OpDownload, omaha.OpXZ, omaha.OpCRX3}
 
 func (e *Engine) CheckChrome(ctx context.Context, in *install.Install) (*ChromeUpdate, error) {
-	req := omaha.Request{Channel: cmp.Or(in.State.Channel, omaha.Stable), Arch: in.Arch, Version: in.Chrome}
+	u, _, err := e.checkInstall(ctx, in, false)
+	return u, err
+}
+
+// CheckChromeInBackground checks as the background mode, and also returns
+// how long the update server asked for no background check.
+func (e *Engine) CheckChromeInBackground(ctx context.Context, in *install.Install) (*ChromeUpdate, time.Duration, error) {
+	return e.checkInstall(ctx, in, true)
+}
+
+func (e *Engine) checkInstall(ctx context.Context, in *install.Install, background bool) (*ChromeUpdate, time.Duration, error) {
+	req := omaha.Request{Channel: cmp.Or(in.State.Channel, omaha.Stable), Arch: in.Arch, Version: in.Chrome, Background: background}
 	if in.State.DiffUpdates {
 		if base, ok := e.base(); ok {
 			req.Cached = []string{base}
@@ -280,15 +292,23 @@ func (e *Engine) CheckChrome(ctx context.Context, in *install.Install) (*ChromeU
 	return e.checkChrome(ctx, req)
 }
 
-func (e *Engine) checkChrome(ctx context.Context, req omaha.Request) (*ChromeUpdate, error) {
+func (e *Engine) checkChrome(ctx context.Context, req omaha.Request) (*ChromeUpdate, time.Duration, error) {
 	req.Accept = accept
 	if len(req.Cached) > 0 {
 		req.Accept = append(slices.Clone(accept), omaha.OpZucc)
 	}
 	ans, err := e.Omaha.Check(ctx, req)
-	if err != nil {
-		return nil, err
+	if se, ok := errors.AsType[*omaha.StatusError](err); ok {
+		return nil, se.RetryAfter, err
 	}
+	if err != nil {
+		return nil, 0, err
+	}
+	u, err := e.chromeUpdate(req, ans)
+	return u, ans.RetryAfter, err
+}
+
+func (e *Engine) chromeUpdate(req omaha.Request, ans *omaha.Answer) (*ChromeUpdate, error) {
 	if ans.Version == "" {
 		return nil, nil
 	}
@@ -1105,7 +1125,7 @@ func (e *Engine) Setup(ctx context.Context, o SetupOptions) error {
 	if exists(e.path(app)) {
 		return ErrInstalled
 	}
-	u, err := e.checkChrome(ctx, omaha.Request{Channel: o.Channel, Arch: o.Arch, Target: o.Target})
+	u, _, err := e.checkChrome(ctx, omaha.Request{Channel: o.Channel, Arch: o.Arch, Target: o.Target})
 	if err != nil {
 		return err
 	}

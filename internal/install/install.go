@@ -270,6 +270,9 @@ type State struct {
 	// Checked is when the background mode last got an answer from both
 	// update sources.
 	Checked time.Time `json:"checked,omitzero"`
+	// Quiet is until when Google's update server asked for no background
+	// check.
+	Quiet time.Time `json:"quiet,omitzero"`
 	// Approved is the Chrome version to install once Chrome exits, and
 	// ApprovedPlus the Chrome++ one.
 	Approved     string `json:"approved,omitempty"`

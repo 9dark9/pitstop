@@ -51,7 +51,7 @@ func TestLive(t *testing.T) {
 	appDir := engine.path(app)
 	t.Cleanup(func() { stopChrome(t, appDir) })
 
-	newest, err := engine.checkChrome(ctx, omaha.Request{Channel: omaha.Stable, Arch: "x64"})
+	newest, _, err := engine.checkChrome(ctx, omaha.Request{Channel: omaha.Stable, Arch: "x64"})
 	if err != nil || newest == nil {
 		t.Fatalf("check the newest stable Chrome: %v, %v", newest, err)
 	}
