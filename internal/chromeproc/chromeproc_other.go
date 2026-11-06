@@ -11,3 +11,7 @@ func Running(string) ([]Process, error) { return nil, nil }
 func Wait(context.Context, string) error { return nil }
 
 func Close(string) error { return nil }
+
+func needsElevation(error) bool { return false }
+
+func shellOpen(string) error { return nil }

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -165,4 +167,22 @@ func roots(ps []Process) []Process {
 		}
 	}
 	return out
+}
+
+// CreateProcess fails with ERROR_ELEVATION_REQUIRED, without asking, when
+// chrome.exe is set to run as administrator. Only then does Start go
+// through the shell, which asks for consent as a double-click would. The
+// usual launch stays on CreateProcess, as Chromium's and Chrome++'s do.
+func needsElevation(err error) bool { return errors.Is(err, windows.ERROR_ELEVATION_REQUIRED) }
+
+var shellOpen = func(exe string) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	// ShellExecute may hand the launch to shell extensions, which need COM.
+	switch err := windows.CoInitializeEx(0, windows.COINIT_APARTMENTTHREADED|windows.COINIT_DISABLE_OLE1DDE); err {
+	case nil, syscall.Errno(windows.S_FALSE):
+		defer windows.CoUninitialize()
+	}
+	return windows.ShellExecute(0, windows.StringToUTF16Ptr("open"), windows.StringToUTF16Ptr(exe), nil,
+		windows.StringToUTF16Ptr(filepath.Dir(exe)), windows.SW_SHOWNORMAL)
 }

@@ -13,6 +13,9 @@ func Start(exe string) error {
 	cmd := exec.Command(exe)
 	cmd.Dir = filepath.Dir(exe)
 	if err := cmd.Start(); err != nil {
+		if needsElevation(err) {
+			return shellOpen(exe)
+		}
 		return err
 	}
 	return cmd.Process.Release()
