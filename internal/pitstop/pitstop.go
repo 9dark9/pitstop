@@ -185,6 +185,16 @@ func (e *Engine) lock() (*flock.Flock, error) {
 	return l, nil
 }
 
+// Busy reports whether another Engine holds the install's lock.
+func (e *Engine) Busy() bool {
+	l := flock.New(e.path(lockFile))
+	ok, err := l.TryLock()
+	if ok {
+		l.Unlock()
+	}
+	return err == nil && !ok
+}
+
 func (e *Engine) record(event install.Event, change func(*install.State)) error {
 	s, err := install.LoadState(e.Root)
 	if err != nil {

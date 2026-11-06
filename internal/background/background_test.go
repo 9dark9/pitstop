@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -287,6 +288,32 @@ func TestOneNotificationCoversBothInstalls(t *testing.T) {
 	w.run(t, nil)
 	if got := fmt.Sprint(w.ui.calls); got != "[installed Chrome 156.0.8078.74, Chrome++ Next 1.18.3]" {
 		t.Errorf("told %s", got)
+	}
+}
+
+func TestFailedInstallAfterExitIsKept(t *testing.T) {
+	w := newWorld(t, "156.0.8078.48", install.Ask, "156.0.8078.48")
+	w.olderPlus(t)
+	w.ui.approve = true
+	w.r.Wait = func(ctx context.Context, dir string) error {
+		w.engine.GitHub.API = "http://127.0.0.1:1"
+		return w.wait(ctx, dir)
+	}
+	w.run(t, nil)
+	in := w.open(t)
+	f := in.State.Failure
+	if f == nil || f.What != "Chrome++ Next" || !f.Time.Equal(w.now) || f.Error == "" || in.State.ApprovedPlus != "1.18.3" {
+		t.Fatalf("failure %+v, approved %q", f, in.State.ApprovedPlus)
+	}
+}
+
+func TestFailedDownloadIsKept(t *testing.T) {
+	w := newWorld(t, "155.", install.Automatic, "155.0.8059.85", "156.0.8078.74")
+	w.engine.Hooks.Verify = func(string, string) error { return errors.New("bad signature") }
+	w.run(t, nil)
+	f := w.open(t).State.Failure
+	if f == nil || f.What != "Chrome 156.0.8078.74" || !strings.Contains(f.Error, "bad signature") {
+		t.Fatalf("failure %+v", f)
 	}
 }
 

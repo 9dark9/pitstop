@@ -36,6 +36,7 @@
   "statusStaged": "{version} 已就绪，重启 Chrome 后生效",
   "statusUnsettled": "被替换的版本还没整理完，Pitstop 会自动重试。",
   "statusWaiting": "关闭 Chrome 后更新到 {version}",
+  "statusNotApplied": "还没更新到 {version}",
   "checkButton": "检查更新",
   "updateButton": "更新到 {version}",
   "installPlusButton": "部署 Chrome++ Next {version}",
@@ -58,6 +59,9 @@
   "busyBody": "另一个 Pitstop 正在修改这个便携版，请等它结束后再试。",
   "patchedBody": "这个 chrome.exe 被 setdll 改过，靠这处改动加载 Chrome++ Next。换上新的 chrome.exe，改动就没了，所以 Pitstop 不更新、也不切换它。想让 Pitstop 更新 Chrome，先在 App 文件夹里运行 setdll /r chrome.exe，再到这里部署 Chrome++ Next。",
   "dismissButton": "知道了",
+  "updateNowButton": "立即更新",
+  "backgroundBusy": "Pitstop 正在后台更新",
+  "backgroundFailed": "Pitstop 没能更新 {what}",
 
   "rollbackTitle": "旧版本",
   "rollbackNone": "暂无。每次更新都会保留被替换的版本。",

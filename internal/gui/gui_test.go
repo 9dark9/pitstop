@@ -1231,6 +1231,7 @@ func TestWaitingUpdateCanBeSkipped(t *testing.T) {
 	h.setUp()
 	h.engine.UpdateState(func(s *install.State) { s.Policy, s.Approved = install.Ask, "156.0.8078.74" })
 	h.a.reload()
+	h.a.running = true
 	h.tt.Frame()
 	h.want("156.0.8078.74 will be applied after you close Chrome")
 	h.shot("waiting")
@@ -1239,6 +1240,55 @@ func TestWaitingUpdateCanBeSkipped(t *testing.T) {
 	if in.State.Approved != "" || !slices.Contains(in.State.Skipped, "156.0.8078.74") {
 		t.Fatalf("approved %q, skipped %v", in.State.Approved, in.State.Skipped)
 	}
+}
+
+// The background mode failed to install an approved build once Chrome
+// closed: the window keeps the failure, and installs the build itself.
+func TestFailedBackgroundUpdateCanBeInstalled(t *testing.T) {
+	h := newHarness(t, "156.0.8078.48")
+	h.setUp()
+	h.s.Versions = append(h.s.Versions, "156.0.8078.74")
+	h.engine.UpdateState(func(s *install.State) {
+		s.Policy, s.Approved = install.Ask, "156.0.8078.74"
+		s.Failure = &install.Failure{Time: time.Now(), What: "Chrome", Error: "the download broke off"}
+	})
+	h.a.reload()
+	h.tt.Frame()
+	h.want("Pitstop couldn't update Chrome", "the download broke off", "156.0.8078.74 isn't applied yet")
+	h.shot("background-failed")
+	h.click("Update now")
+	h.settle()
+	h.want("Google Chrome 156.0.8078.74")
+	if slices.Contains(h.tt.Texts(), "Pitstop couldn't update Chrome") {
+		t.Error("the failure stays after the update")
+	}
+	if in, _ := install.Open(h.engine.Root); in.State.Approved != "" || in.State.Failure != nil {
+		t.Errorf("approved %q, failure %+v", in.State.Approved, in.State.Failure)
+	}
+}
+
+func TestBackgroundFailureCanBeDismissed(t *testing.T) {
+	h := newHarness(t, "156.0.8078.48")
+	h.setUp()
+	h.engine.UpdateState(func(s *install.State) {
+		s.Failure = &install.Failure{Time: time.Now(), What: "Chrome++ Next", Error: "boom"}
+	})
+	h.a.reload()
+	h.tt.Frame()
+	h.want("Pitstop couldn't update Chrome++ Next")
+	h.click("Dismiss")
+	if in, _ := install.Open(h.engine.Root); in.State.Failure != nil || slices.Contains(h.tt.Texts(), "boom") {
+		t.Errorf("failure %+v", in.State.Failure)
+	}
+}
+
+func TestBackgroundWorkShowsProgress(t *testing.T) {
+	h := newHarness(t, "156.0.8078.48")
+	h.setUp()
+	h.a.elsewhere = true
+	h.tt.Frame()
+	h.want("Pitstop is updating in the background")
+	h.shot("background-busy")
 }
 
 func TestWindowRepairsTheOptIn(t *testing.T) {

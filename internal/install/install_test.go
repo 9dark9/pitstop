@@ -161,6 +161,20 @@ func TestState(t *testing.T) {
 	}
 }
 
+func TestUpdateClearsTheFailure(t *testing.T) {
+	var s State
+	for _, tc := range []struct {
+		kind  EventKind
+		clear bool
+	}{{SettingsSaved, false}, {ChromeRolledBack, false}, {ChromeUpdated, true}, {PlusUpdated, true}, {Installed, true}} {
+		s.Failure = &Failure{What: "Chrome", Error: "boom"}
+		s.Record(Event{Kind: tc.kind})
+		if (s.Failure == nil) != tc.clear {
+			t.Errorf("%s: failure %+v", tc.kind, s.Failure)
+		}
+	}
+}
+
 func TestCompareVersions(t *testing.T) {
 	for _, tc := range []struct {
 		a, b string

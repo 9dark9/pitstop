@@ -36,6 +36,7 @@
   "statusStaged": "{version} is ready and goes in when Chrome restarts",
   "statusUnsettled": "Pitstop hasn't finished putting away the replaced version. It keeps trying.",
   "statusWaiting": "{version} will be applied after you close Chrome",
+  "statusNotApplied": "{version} isn't applied yet",
   "checkButton": "Check for updates",
   "updateButton": "Update to {version}",
   "installPlusButton": "Set up Chrome++ Next {version}",
@@ -58,6 +59,9 @@
   "busyBody": "Another copy of Pitstop is changing this portable folder. Try again once it's done.",
   "patchedBody": "This chrome.exe was patched with setdll to load Chrome++ Next. A new chrome.exe would lose the patch, so Pitstop won't update or switch it. To let Pitstop update Chrome, run setdll /r chrome.exe in the App folder, then set up Chrome++ Next here.",
   "dismissButton": "Dismiss",
+  "updateNowButton": "Update now",
+  "backgroundBusy": "Pitstop is updating in the background",
+  "backgroundFailed": "Pitstop couldn't update {what}",
 
   "rollbackTitle": "Earlier versions",
   "rollbackNone": "None yet. Each update keeps the version it replaces.",

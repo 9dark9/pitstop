@@ -348,6 +348,16 @@ func (msgs Messages) StatusWaiting(version string) string {
 	return Catalog.Format(msgs.locale, "statusWaiting", map[string]any{"version": version})
 }
 
+// StatusNotApplied says "{version} isn't applied yet"
+// in the language the app shows.
+func StatusNotApplied(version string) string { return In(i18n.Locale()).StatusNotApplied(version) }
+
+// StatusNotApplied says "{version} isn't applied yet"
+// in the language of msgs.
+func (msgs Messages) StatusNotApplied(version string) string {
+	return Catalog.Format(msgs.locale, "statusNotApplied", map[string]any{"version": version})
+}
+
 // CheckButton says "Check for updates"
 // in the language the app shows.
 func CheckButton() string { return In(i18n.Locale()).CheckButton() }
@@ -550,6 +560,36 @@ func DismissButton() string { return In(i18n.Locale()).DismissButton() }
 // in the language of msgs.
 func (msgs Messages) DismissButton() string {
 	return Catalog.Format(msgs.locale, "dismissButton", nil)
+}
+
+// UpdateNowButton says "Update now"
+// in the language the app shows.
+func UpdateNowButton() string { return In(i18n.Locale()).UpdateNowButton() }
+
+// UpdateNowButton says "Update now"
+// in the language of msgs.
+func (msgs Messages) UpdateNowButton() string {
+	return Catalog.Format(msgs.locale, "updateNowButton", nil)
+}
+
+// BackgroundBusy says "Pitstop is updating in the background"
+// in the language the app shows.
+func BackgroundBusy() string { return In(i18n.Locale()).BackgroundBusy() }
+
+// BackgroundBusy says "Pitstop is updating in the background"
+// in the language of msgs.
+func (msgs Messages) BackgroundBusy() string {
+	return Catalog.Format(msgs.locale, "backgroundBusy", nil)
+}
+
+// BackgroundFailed says "Pitstop couldn't update {what}"
+// in the language the app shows.
+func BackgroundFailed(what string) string { return In(i18n.Locale()).BackgroundFailed(what) }
+
+// BackgroundFailed says "Pitstop couldn't update {what}"
+// in the language of msgs.
+func (msgs Messages) BackgroundFailed(what string) string {
+	return Catalog.Format(msgs.locale, "backgroundFailed", map[string]any{"what": what})
 }
 
 // RollbackTitle says "Earlier versions"

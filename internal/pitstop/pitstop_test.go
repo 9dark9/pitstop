@@ -616,9 +616,15 @@ func TestBusy(t *testing.T) {
 	if ok, err := other.TryLock(); !ok || err != nil {
 		t.Fatalf("TryLock = %v, %v", ok, err)
 	}
-	defer other.Unlock()
+	if !engine.Busy() {
+		t.Error("Busy = false while another holds the lock")
+	}
 	if err := engine.RollbackChrome(context.Background(), false); !errors.Is(err, ErrBusy) {
 		t.Fatalf("RollbackChrome = %v", err)
+	}
+	other.Unlock()
+	if engine.Busy() {
+		t.Error("Busy = true once the lock is free")
 	}
 }
 

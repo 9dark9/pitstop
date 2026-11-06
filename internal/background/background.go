@@ -116,7 +116,7 @@ func (r *Runner) check(ctx context.Context, in *install.Install) bool {
 		case pitstop.Get:
 			if err := r.get(ctx, u); err != nil {
 				log.Printf("install Chrome %s: %v", u.Version, err)
-				r.UI.Failed(err)
+				r.fail(ctx, "Chrome "+u.Version, err)
 			}
 		}
 	}
@@ -179,7 +179,7 @@ func (r *Runner) afterExit(ctx context.Context) bool {
 		case errors.Is(err, pitstop.ErrChromeRunning):
 		case err != nil:
 			log.Printf("install the approved %s: %v", name, err)
-			r.UI.Failed(err)
+			r.fail(ctx, name, err)
 			return true
 		case v != "":
 			log.Printf("installed %s %s", name, v)
@@ -195,6 +195,19 @@ func (r *Runner) afterExit(ctx context.Context) bool {
 	return failed || len(done) > 0
 }
 
+func (r *Runner) fail(ctx context.Context, what string, err error) {
+	r.UI.Failed(err)
+	r.remember(ctx, what, err)
+}
+
+// remember keeps a failure for the window to show.
+func (r *Runner) remember(ctx context.Context, what string, err error) {
+	f := &install.Failure{Time: r.Conditions().Now, What: what, Error: err.Error()}
+	if err := r.setState(ctx, func(s *install.State) { s.Failure = f }); err != nil {
+		log.Printf("recording the failure: %v", err)
+	}
+}
+
 // Approve has the offered update installed: Chrome's download starts now,
 // and what can't go in while Chrome runs waits for it to exit.
 func (r *Runner) Approve(ctx context.Context, o Offer) error {
@@ -204,7 +217,11 @@ func (r *Runner) Approve(ctx context.Context, o Offer) error {
 	if err := r.setState(ctx, func(s *install.State) { s.Approved = o.Version }); err != nil {
 		return err
 	}
-	return r.get(ctx, o.chrome)
+	err := r.get(ctx, o.chrome)
+	if err != nil {
+		r.remember(ctx, "Chrome "+o.Version, err)
+	}
+	return err
 }
 
 func (r *Runner) Skip(ctx context.Context, o Offer) error {

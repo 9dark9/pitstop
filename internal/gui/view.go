@@ -402,7 +402,7 @@ func (a *App) overview(c *ui.Context) {
 			return
 		}
 		if v := in.State.Approved; v != "" && install.CompareVersions(v, in.Chrome) > 0 && (a.chromeUpdate == nil || a.chromeUpdate.Version == v) {
-			a.waiting(c, v)
+			a.waiting(c, v, a.installApproved)
 			return
 		}
 		a.status(c, a.chromeUpdate != nil, func() {
@@ -428,7 +428,7 @@ func (a *App) overview(c *ui.Context) {
 			}
 		})
 		if v := in.State.ApprovedPlus; v != "" && (a.plusUpdate == nil || a.plusUpdate.Release.Tag == v) {
-			a.waiting(c, v)
+			a.waiting(c, v, a.installApprovedPlus)
 			return
 		}
 		a.status(c, a.plusUpdate != nil, func() {
@@ -482,6 +482,20 @@ func (a *App) status(c *ui.Context, found bool, update func()) {
 }
 
 func (a *App) operation(c *ui.Context) {
+	if f := a.failure(); f != nil {
+		card(c, func() {
+			ui.Row(c).Gap(12).Children(func() {
+				ui.Text(c, locales.BackgroundFailed(f.What)).Bold().TextColor(c.Theme().Danger).Grow(1)
+				muted(c, i18n.FormatDate(c.Locale(), f.Time.Local(), i18n.DateOptions{Date: i18n.MediumStyle, Time: i18n.ShortStyle}))
+			})
+			ui.Text(c, f.Error).Selectable()
+			ui.Row(c).Children(func() {
+				if ui.Button(c.Key("dismiss-failure"), locales.DismissButton()).Clicked() {
+					a.dismissFailure()
+				}
+			})
+		})
+	}
 	switch {
 	case a.busy:
 		card(c, func() {
@@ -503,6 +517,11 @@ func (a *App) operation(c *ui.Context) {
 				}
 				muted(c, line)
 			}
+		})
+	case a.elsewhere:
+		card(c, func() {
+			ui.Text(c, locales.BackgroundBusy()).Bold()
+			ui.Progress(c, -1).Label(locales.BackgroundBusy())
 		})
 	case errors.Is(a.opErr, pitstop.ErrChromeRunning):
 		card(c, func() {
@@ -537,6 +556,13 @@ func (a *App) operation(c *ui.Context) {
 	}
 }
 
+func (a *App) failure() *install.Failure {
+	if a.in == nil || a.busy {
+		return nil
+	}
+	return a.in.State.Failure
+}
+
 func phaseLabel(p pitstop.Phase) string {
 	switch p {
 	case pitstop.Downloading:
@@ -561,10 +587,18 @@ func phaseLabel(p pitstop.Phase) string {
 	return locales.PhaseCheck()
 }
 
-// waiting shows an update that goes in once Chrome closes.
-func (a *App) waiting(c *ui.Context, version string) {
+// waiting shows an update that goes in once Chrome closes. With Chrome
+// closed, the background mode is done or failed, so the user can install it.
+func (a *App) waiting(c *ui.Context, version string, apply func()) {
 	ui.Row(c.Key(version)).Gap(12).AlignItems(ui.Center).Margin(4, 0, 0).Children(func() {
-		ui.Text(c, locales.StatusWaiting(version)).Grow(1)
+		if a.running {
+			ui.Text(c, locales.StatusWaiting(version)).Grow(1)
+		} else {
+			ui.Text(c, locales.StatusNotApplied(version)).Grow(1)
+			if ui.PrimaryButton(c.Key("install"), locales.UpdateNowButton()).Disabled(a.busy || a.elsewhere).Clicked() {
+				apply()
+			}
+		}
 		if ui.Button(c.Key("skip"), locales.SkipVersionButton()).Disabled(a.busy).Clicked() {
 			a.setState(func(s *install.State) { s.Skip(version) })
 		}

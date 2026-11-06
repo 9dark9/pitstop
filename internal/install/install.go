@@ -279,8 +279,17 @@ type State struct {
 	DiscardReplaced bool `json:"discardReplaced,omitempty"`
 	// DiffUpdates has Chrome updates keep their package, which Google's
 	// server can then patch into the next one.
-	DiffUpdates bool    `json:"diffUpdates,omitempty"`
-	History     []Event `json:"history,omitempty"`
+	DiffUpdates bool `json:"diffUpdates,omitempty"`
+	// Failure is the background mode's last failed update, until an update
+	// goes in or the user dismisses it.
+	Failure *Failure `json:"failure,omitempty"`
+	History []Event  `json:"history,omitempty"`
+}
+
+type Failure struct {
+	Time  time.Time `json:"time"`
+	What  string    `json:"what"`
+	Error string    `json:"error"`
 }
 
 // CheckEvery is how long the background mode waits between checks.
@@ -373,6 +382,10 @@ func StateTime(root string) time.Time {
 func (s *State) Record(e Event) {
 	if e.Time.IsZero() {
 		e.Time = time.Now()
+	}
+	switch e.Kind {
+	case Installed, ChromeUpdated, PlusUpdated:
+		s.Failure = nil
 	}
 	s.History = slices.Insert(s.History, 0, e)
 	if len(s.History) > historyLimit {

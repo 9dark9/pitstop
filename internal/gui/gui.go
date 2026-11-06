@@ -76,7 +76,10 @@ type App struct {
 
 	// running says whether Chrome runs from the install, as of Watch's last
 	// look.
-	running     bool
+	running bool
+	// elsewhere says whether another Pitstop, such as the background mode,
+	// holds the install, as of Watch's last look.
+	elsewhere   bool
 	restartOpen bool
 	clearOpen   bool
 
@@ -151,7 +154,7 @@ func New(engine *pitstop.Engine, version string, host Host) *App {
 // Settling can wait seconds for a file, so the install opens off the UI
 // thread.
 func (a *App) Watch() {
-	running := a.running
+	running, elsewhere := a.running, false
 	state := install.StateTime(a.engine.Root)
 	go func() {
 		kept := a.engine.KeptSizes()
@@ -160,6 +163,10 @@ func (a *App) Watch() {
 			if now := a.engine.ChromeRunning(); now != running {
 				running = now
 				a.Post(func() { a.running = now })
+			}
+			if now := a.engine.Busy(); now != elsewhere {
+				elsewhere = now
+				a.Post(func() { a.elsewhere = now })
 			}
 			if now := install.StateTime(a.engine.Root); !now.Equal(state) {
 				state = now
@@ -323,6 +330,55 @@ func (a *App) updateChrome() {
 			a.toast = stagedToast(u.Version)
 		}
 	})
+}
+
+// installApproved installs the approved Chrome, which normally waits for
+// the background mode to see Chrome exit. A download that failed is
+// fetched again.
+func (a *App) installApproved() {
+	var got string
+	a.run(func(ctx context.Context) error {
+		v, err := a.engine.InstallApproved(ctx)
+		if err != nil || v != "" {
+			got = v
+			return err
+		}
+		in, err := a.engine.Open()
+		if err != nil {
+			return err
+		}
+		u, err := a.engine.CheckChrome(ctx, in)
+		if err != nil || u == nil || u.Version != in.State.Approved {
+			return err
+		}
+		got = u.Version
+		_, err = a.engine.UpdateChrome(ctx, u)
+		return err
+	}, func() {
+		if got != "" {
+			a.toast = installedToast("Google Chrome", got)
+		}
+	})
+}
+
+func (a *App) installApprovedPlus() {
+	var got string
+	a.run(func(ctx context.Context) (err error) {
+		got, err = a.engine.InstallApprovedPlus(ctx)
+		return err
+	}, func() {
+		if got != "" {
+			a.toast = installedToast("Chrome++ Next", got)
+		}
+	})
+}
+
+func (a *App) dismissFailure() {
+	if err := a.engine.UpdateState(func(s *install.State) { s.Failure = nil }); err != nil {
+		a.opErr = err
+		return
+	}
+	a.in.State.Failure = nil
 }
 
 func (a *App) updateChromePlus() {
